@@ -5,7 +5,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import "./IRewarder.sol";
 
-interface IEquibiliaMasterChef {
+interface IEqbMasterChef {
     function poolInfo(uint256)
         external
         view

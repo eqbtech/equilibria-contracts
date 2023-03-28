@@ -8,7 +8,7 @@ import "./Dependencies/WeekMath.sol";
 import "./Interfaces/IBaseRewardPool.sol";
 import "./Interfaces/IPendleDepositor.sol";
 import "./Interfaces/IPendleProxy.sol";
-import "./Interfaces/IEquibiliaExternalToken.sol";
+import "./Interfaces/IEqbExternalToken.sol";
 
 contract PendleDepositor is IPendleDepositor, OwnableUpgradeable {
     using SafeERC20 for IERC20;
@@ -79,10 +79,10 @@ contract PendleDepositor is IPendleDepositor, OwnableUpgradeable {
 
         if (!_stake) {
             //mint for msg.sender
-            IEquibiliaExternalToken(ePendle).mint(msg.sender, _amount);
+            IEqbExternalToken(ePendle).mint(msg.sender, _amount);
         } else {
             //mint here
-            IEquibiliaExternalToken(ePendle).mint(address(this), _amount);
+            IEqbExternalToken(ePendle).mint(address(this), _amount);
             //stake for msg.sender
             IERC20(ePendle).safeApprove(ePendleRewardPool, 0);
             IERC20(ePendle).safeApprove(ePendleRewardPool, _amount);

@@ -9,7 +9,7 @@ import "./Interfaces/IPendleBooster.sol";
 import "./Interfaces/IPendleProxy.sol";
 import "./Interfaces/IDepositToken.sol";
 import "./Interfaces/IPendleDepositor.sol";
-import "./Interfaces/IEquibiliaToken.sol";
+import "./Interfaces/IEqbToken.sol";
 import "./Interfaces/IBaseRewardPool.sol";
 import "@shared/lib-contracts-v0.8/contracts/Dependencies/TransferHelper.sol";
 
@@ -437,7 +437,7 @@ contract PendleBooster is IPendleBooster, OwnableUpgradeable {
         }
 
         //mint reward tokens
-        IEquibiliaToken(eqb).mint(_account, _amount);
+        IEqbToken(eqb).mint(_account, _amount);
     }
 
     function _convertPendleToEPendle(

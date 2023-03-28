@@ -20,7 +20,7 @@ contract DepositToken is IDepositToken, ERC20Upgradeable, OwnableUpgradeable {
 
         __ERC20_init_unchained(
             string(
-                abi.encodePacked(ERC20(_lptoken).name(), " Equibilia Deposit")
+                abi.encodePacked(ERC20(_lptoken).name(), " Equilibria Deposit")
             ),
             string(abi.encodePacked("eqb", ERC20(_lptoken).symbol()))
         );

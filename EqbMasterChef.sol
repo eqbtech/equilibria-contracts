@@ -5,9 +5,9 @@ pragma solidity 0.8.17;
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
-import "./Interfaces/IEquibiliaMasterChef.sol";
+import "./Interfaces/IEqbMasterChef.sol";
 
-contract EquibiliaMasterChef is IEquibiliaMasterChef, OwnableUpgradeable {
+contract EqbMasterChef is IEqbMasterChef, OwnableUpgradeable {
     using SafeERC20 for IERC20;
 
     // Info of each user.

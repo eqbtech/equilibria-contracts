@@ -5,10 +5,10 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 
-import "./Interfaces/IEquibiliaExternalToken.sol";
+import "./Interfaces/IEqbExternalToken.sol";
 
-contract EquibiliaExternalToken is
-    IEquibiliaExternalToken,
+contract EqbExternalToken is
+    IEqbExternalToken,
     ERC20Upgradeable,
     OwnableUpgradeable
 {

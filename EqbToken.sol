@@ -4,13 +4,9 @@ pragma solidity 0.8.17;
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 
-import "./Interfaces/IEquibiliaToken.sol";
+import "./Interfaces/IEqbToken.sol";
 
-contract EquibiliaToken is
-    IEquibiliaToken,
-    ERC20Upgradeable,
-    OwnableUpgradeable
-{
+contract EqbToken is IEqbToken, ERC20Upgradeable, OwnableUpgradeable {
     mapping(address => bool) public access;
 
     uint256 public maxSupply;
@@ -26,7 +22,7 @@ contract EquibiliaToken is
     function initialize() public initializer {
         __Ownable_init();
 
-        __ERC20_init_unchained("Equibilia Token", "EQB");
+        __ERC20_init_unchained("Equilibria Token", "EQB");
 
         access[msg.sender] = true;
 
