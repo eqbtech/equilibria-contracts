@@ -49,9 +49,9 @@ contract PendleBooster is IPendleBooster, OwnableUpgradeable {
     address public pendleDepositor;
     address public ePendle;
 
-    address public smartConvertor;
-
     uint256 public earmarkIncentive;
+
+    bool public earmarkOnOperation;
 
     function initialize() public initializer {
         __Ownable_init();
@@ -104,6 +104,8 @@ contract PendleBooster is IPendleBooster, OwnableUpgradeable {
         ePendleIncentive = 1000;
         eqbIncentive = 100;
         platformFee = 100;
+
+        earmarkOnOperation = true;
     }
 
     function setFees(
@@ -146,16 +148,18 @@ contract PendleBooster is IPendleBooster, OwnableUpgradeable {
         treasury = _treasury;
     }
 
-    function setSmartConvertor(address _smartConvertor) external onlyOwner {
-        smartConvertor = _smartConvertor;
-    }
-
     function setEarmarkIncentive(uint256 _earmarkIncentive) external onlyOwner {
         require(
             _earmarkIncentive >= 10 && _earmarkIncentive <= 100,
             "invalid _earmarkIncentive"
         );
         earmarkIncentive = _earmarkIncentive;
+    }
+
+    function setEarmarkOnOperation(
+        bool _earmarkOnOperation
+    ) external onlyOwner {
+        earmarkOnOperation = _earmarkOnOperation;
     }
 
     /// END SETTER SECTION ///
@@ -232,11 +236,13 @@ contract PendleBooster is IPendleBooster, OwnableUpgradeable {
         PoolInfo memory pool = poolInfo[_pid];
         require(pool.shutdown == false, "pool is closed");
 
+        if (earmarkOnOperation) {
+            _earmarkRewards(_pid, address(0));
+        }
+
         // send to proxy
         address market = pool.market;
         IERC20(market).safeTransferFrom(msg.sender, pendleProxy, _amount);
-
-        _earmarkRewards(_pid, address(0));
 
         address token = pool.token;
         if (_stake) {
@@ -272,6 +278,10 @@ contract PendleBooster is IPendleBooster, OwnableUpgradeable {
 
         address token = pool.token;
         IDepositToken(token).burn(_from, _amount);
+
+        if (earmarkOnOperation) {
+            _earmarkRewards(_pid, address(0));
+        }
 
         // return market tokens
         IPendleProxy(pendleProxy).withdraw(market, _to, _amount);

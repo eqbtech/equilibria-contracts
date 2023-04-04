@@ -70,7 +70,7 @@ contract PendleProxy is IPendleProxy, OwnableUpgradeable {
         address _market,
         address _to,
         uint256 _amount
-    ) external override {
+    ) external override onlyBooster {
         IERC20(_market).safeTransfer(_to, _amount);
 
         emit Withdrawn(_market, _to, _amount);
@@ -113,12 +113,9 @@ contract PendleProxy is IPendleProxy, OwnableUpgradeable {
             IERC20(pendle).safeApprove(vePendle, balance);
         }
 
-        (uint256[] memory chainIds, ) = IPVotingEscrowMainchain(vePendle)
-            .getAllDestinationContracts();
-        IPVotingEscrowMainchain(vePendle).increaseLockPositionAndBroadcast(
+        IPVotingEscrowMainchain(vePendle).increaseLockPosition(
             uint128(balance),
-            _expiry,
-            chainIds
+            _expiry
         );
 
         emit PendleLocked(uint128(balance), _expiry);

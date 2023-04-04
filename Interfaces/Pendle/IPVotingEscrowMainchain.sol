@@ -9,6 +9,11 @@ interface IPVotingEscrowMainchain {
         view
         returns (uint256[] memory chainIds, address[] memory addrs);
 
+    function increaseLockPosition(
+        uint128 additionalAmountToLock,
+        uint128 expiry
+    ) external returns (uint128);
+
     function increaseLockPositionAndBroadcast(
         uint128 additionalAmountToLock,
         uint128 newExpiry,
