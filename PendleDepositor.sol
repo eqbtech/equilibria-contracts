@@ -21,6 +21,9 @@ contract PendleDepositor is IPendleDepositor, OwnableUpgradeable {
 
     address public ePendleRewardPool;
 
+    uint256 public lockTimeInterval;
+    uint256 public lastLockTime;
+
     uint128 public constant MAX_LOCK_TIME = 104 weeks;
 
     function initialize() public initializer {
@@ -49,9 +52,16 @@ contract PendleDepositor is IPendleDepositor, OwnableUpgradeable {
         ePendle = _ePendle;
 
         ePendleRewardPool = _ePendleRewardPool;
+
+        lockTimeInterval = 1 days;
+        lastLockTime = block.timestamp;
     }
 
-    //lock pendle
+    function setLockTimeInterval(uint256 _lockTimeInterval) external onlyOwner {
+        lockTimeInterval = _lockTimeInterval;
+    }
+
+    // lock pendle
     function _lockPendle() internal {
         uint256 pendleBalance = IERC20(pendle).balanceOf(address(this));
         if (pendleBalance > 0) {
@@ -63,27 +73,33 @@ contract PendleDepositor is IPendleDepositor, OwnableUpgradeable {
                 uint128(block.timestamp) + MAX_LOCK_TIME
             )
         );
+        lastLockTime = block.timestamp;
     }
 
     function lockPendle() external onlyOwner {
         _lockPendle();
     }
 
-    //deposit pendle for ePendle
+    // deposit pendle for ePendle
     function deposit(uint256 _amount, bool _stake) public override {
         require(_amount > 0, "!>0");
 
-        //lock immediately, transfer directly to pendleProxy to skip an erc20 transfer
-        IERC20(pendle).safeTransferFrom(msg.sender, pendleProxy, _amount);
-        _lockPendle();
+        if (block.timestamp > lastLockTime + lockTimeInterval) {
+            // lock immediately, transfer directly to pendleProxy to skip an erc20 transfer
+            IERC20(pendle).safeTransferFrom(msg.sender, pendleProxy, _amount);
+            _lockPendle();
+        } else {
+            // move tokens here
+            IERC20(pendle).safeTransferFrom(msg.sender, address(this), _amount);
+        }
 
         if (!_stake) {
-            //mint for msg.sender
+            // mint for msg.sender
             IEqbExternalToken(ePendle).mint(msg.sender, _amount);
         } else {
-            //mint here
+            // mint here
             IEqbExternalToken(ePendle).mint(address(this), _amount);
-            //stake for msg.sender
+            // stake for msg.sender
             IERC20(ePendle).safeApprove(ePendleRewardPool, 0);
             IERC20(ePendle).safeApprove(ePendleRewardPool, _amount);
             IBaseRewardPool(ePendleRewardPool).stakeFor(msg.sender, _amount);
