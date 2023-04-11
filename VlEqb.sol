@@ -6,8 +6,9 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
 import "./Interfaces/IBaseRewardPool.sol";
+import "./Interfaces/IVlEqb.sol";
 
-contract VlEqb is OwnableUpgradeable {
+contract VlEqb is IVlEqb, OwnableUpgradeable {
     using SafeERC20 for IERC20;
 
     address public pendle;
@@ -192,7 +193,11 @@ contract VlEqb is OwnableUpgradeable {
         blockThirdPartyActions[msg.sender] = _block;
     }
 
-    function lock(address _user, uint256 _amount, uint256 _weeks) external {
+    function lock(
+        address _user,
+        uint256 _amount,
+        uint256 _weeks
+    ) external override {
         require(_user != address(0), "invalid _user!");
         require(
             msg.sender == _user || !blockThirdPartyActions[_user],
