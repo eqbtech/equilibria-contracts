@@ -5,19 +5,15 @@ pragma solidity 0.8.17;
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
+import "@shared/lib-contracts-v0.8/contracts/Dependencies/TransferHelper.sol";
 import "./Interfaces/IBaseRewardPool.sol";
 import "./Interfaces/IVlEqb.sol";
 
 contract VlEqb is IVlEqb, OwnableUpgradeable {
     using SafeERC20 for IERC20;
+    using TransferHelper for address;
 
-    address public pendle;
     IERC20 public eqb;
-
-    address public booster;
-    address public pendleDepositor;
-    address public ePendleRewards;
-    IERC20 public ePendleToken;
 
     uint256 public constant WEEK = 86400 * 7;
     uint256 public constant MAX_LOCK_WEEKS = 52;
@@ -79,39 +75,34 @@ contract VlEqb is IVlEqb, OwnableUpgradeable {
 
     event Migrated(address indexed _user, uint256 _amount, uint256 _weeks);
 
-    function initialize() public initializer {
-        __Ownable_init();
-    }
-
-    function setParams(
-        address _eqb,
-        address _pendle,
-        address _pendleDepositor,
-        address _ePendleRewards,
-        address _ePendleToken,
-        address _booster
-    ) external onlyOwner {
-        require(address(eqb) == address(0), "!init");
-
+    function initialize(address _eqb) public initializer {
         require(_eqb != address(0), "invalid _eqb!");
-        require(_pendle != address(0), "invalid _pendle!");
-        require(_pendleDepositor != address(0), "invalid _pendleDepositor!");
-        require(_ePendleRewards != address(0), "invalid _ePendleRewards!");
-        require(_ePendleToken != address(0), "invalid _ePendleToken!");
-        require(_booster != address(0), "invalid _booster!");
+        __Ownable_init();
 
         eqb = IERC20(_eqb);
-        pendle = _pendle;
-
-        pendleDepositor = _pendleDepositor;
-        ePendleRewards = _ePendleRewards;
-        ePendleToken = IERC20(_ePendleToken);
-
-        booster = _booster;
-        setAccess(_booster, true);
     }
 
-    function userWeight(address _user) external view returns (uint256) {
+    function name() external pure returns (string memory) {
+        return "vote-lock EQB";
+    }
+
+    function symbol() external pure returns (string memory) {
+        return "vlEQB";
+    }
+
+    function decimals() external pure returns (uint8) {
+        return 18;
+    }
+
+    function totalSupply() public view returns (uint256) {
+        return totalWeight();
+    }
+
+    function balanceOf(address _user) public view returns (uint256) {
+        return userWeight(_user);
+    }
+
+    function userWeight(address _user) public view returns (uint256) {
         return userLockData[_user].weeklyWeight[_getCurWeek()];
     }
 
@@ -343,7 +334,7 @@ contract VlEqb is IVlEqb, OwnableUpgradeable {
         emit RewardTokenAdded(_rewardToken);
     }
 
-    function _getReward(address _user, bool _stake) internal {
+    function getReward(address _user) external {
         uint256 userLastClaimedWeek = lastClaimedWeek[_user];
         if (
             userLastClaimedWeek == 0 ||
@@ -355,18 +346,7 @@ contract VlEqb is IVlEqb, OwnableUpgradeable {
             address rewardToken = rewardTokens[i];
             uint256 reward = earned(_user, rewardToken);
             if (reward > 0) {
-                if (rewardToken == address(ePendleToken)) {
-                    if (_stake) {
-                        ePendleToken.safeApprove(ePendleRewards, 0);
-                        ePendleToken.safeApprove(ePendleRewards, reward);
-                        IBaseRewardPool(ePendleRewards).stakeFor(_user, reward);
-                    } else {
-                        ePendleToken.safeTransfer(_user, reward);
-                    }
-                } else {
-                    // other token
-                    IERC20(rewardToken).safeTransfer(_user, reward);
-                }
+                rewardToken.safeTransferToken(_user, reward);
 
                 emit RewardPaid(_user, rewardToken, reward);
             }
@@ -375,30 +355,39 @@ contract VlEqb is IVlEqb, OwnableUpgradeable {
         lastClaimedWeek[_user] = _getCurWeek() - WEEK;
     }
 
-    function getReward(bool _stake) external {
-        _getReward(msg.sender, _stake);
-    }
-
-    function donate(address _rewardToken, uint256 _amount) external {
+    function donate(address _rewardToken, uint256 _amount) external payable {
         require(isRewardToken[_rewardToken], "invalid token");
-        IERC20(_rewardToken).safeTransferFrom(
-            msg.sender,
-            address(this),
-            _amount
-        );
+        if (AddressLib.isPlatformToken(_rewardToken)) {
+            require(_amount == msg.value, "invalid amount");
+        } else {
+            require(msg.value == 0, "invalid msg.value");
+            IERC20(_rewardToken).safeTransferFrom(
+                msg.sender,
+                address(this),
+                _amount
+            );
+        }
         queuedRewards[_rewardToken] = queuedRewards[_rewardToken] + _amount;
     }
 
-    function queueNewRewards(address _rewardToken, uint256 _rewards) external {
+    function queueNewRewards(
+        address _rewardToken,
+        uint256 _rewards
+    ) external payable {
         require(access[msg.sender], "!auth");
 
         _addRewardToken(_rewardToken);
 
-        IERC20(_rewardToken).safeTransferFrom(
-            msg.sender,
-            address(this),
-            _rewards
-        );
+        if (AddressLib.isPlatformToken(_rewardToken)) {
+            require(_rewards == msg.value, "invalid amount");
+        } else {
+            require(msg.value == 0, "invalid msg.value");
+            IERC20(_rewardToken).safeTransferFrom(
+                msg.sender,
+                address(this),
+                _rewards
+            );
+        }
 
         if (totalWeight() == 0) {
             queuedRewards[_rewardToken] =

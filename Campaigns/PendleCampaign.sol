@@ -66,6 +66,7 @@ contract PendleCampaign is AccessControlUpgradeable {
         require(_pendle != address(0), "invalid _pendle!");
         require(_treasury != address(0), "invalid _treasury!");
         require(_penalty > 0, "invalid _penalty!");
+        require(_penalty < DENOMINATOR, "invalid _penalty!");
 
         pendle = _pendle;
         treasury = _treasury;

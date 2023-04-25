@@ -32,6 +32,8 @@ interface IPendleBooster {
     event EarmarkIncentiveSent(
         uint256 _pid,
         address indexed _caller,
+        address indexed _token,
         uint256 _amount
     );
+    event TreasurySent(uint256 _pid, address indexed _token, uint256 _amount);
 }

@@ -1,44 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.17;
-/**
- *Submitted for verification at Etherscan.io on 2020-07-17
- */
 
-/*
-   ____            __   __        __   _
-  / __/__ __ ___  / /_ / /  ___  / /_ (_)__ __
- _\ \ / // // _ \/ __// _ \/ -_)/ __// / \ \ /
-/___/ \_, //_//_/\__//_//_/\__/ \__//_/ /_\_\
-     /___/
-
-* Synthetix: BaseRewardPool.sol
-*
-* Docs: https://docs.synthetix.io/
-*
-*
-* MIT License
-* ===========
-*
-* Copyright (c) 2020 Synthetix
-*
-* Permission is hereby granted, free of charge, to any person obtaining a copy
-* of this software and associated documentation files (the "Software"), to deal
-* in the Software without restriction, including without limitation the rights
-* to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-* copies of the Software, and to permit persons to whom the Software is
-* furnished to do so, subject to the following conditions:
-*
-* The above copyright notice and this permission notice shall be included in all
-* copies or substantial portions of the Software.
-*
-* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-* IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-* FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-* AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-* LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-* OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-*/
-
+import "@openzeppelin/contracts/utils/math/Math.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
@@ -57,10 +20,15 @@ contract BaseRewardPool is IBaseRewardPool, OwnableUpgradeable {
     IERC20 public override stakingToken;
     address[] public rewardTokens;
 
+    uint256 public constant duration = 7 days;
+
     uint256 private _totalSupply;
     mapping(address => uint256) private _balances;
 
     struct Reward {
+        uint256 periodFinish;
+        uint256 rewardRate;
+        uint256 lastUpdateTime;
         uint256 rewardPerTokenStored;
         uint256 queuedRewards;
     }
@@ -138,6 +106,10 @@ contract BaseRewardPool is IBaseRewardPool, OwnableUpgradeable {
     modifier updateReward(address _account) {
         for (uint256 i = 0; i < rewardTokens.length; i++) {
             address rewardToken = rewardTokens[i];
+            Reward storage reward = rewards[rewardToken];
+            reward.rewardPerTokenStored = rewardPerToken(rewardToken);
+            reward.lastUpdateTime = lastTimeRewardApplicable(rewardToken);
+
             UserReward storage userReward = userRewards[_account][rewardToken];
             userReward.rewards = earned(_account, rewardToken);
             userReward.userRewardPerTokenPaid = rewards[rewardToken]
@@ -163,15 +135,34 @@ contract BaseRewardPool is IBaseRewardPool, OwnableUpgradeable {
         return rewardTokens.length;
     }
 
+    function lastTimeRewardApplicable(
+        address _rewardToken
+    ) public view returns (uint256) {
+        return Math.min(block.timestamp, rewards[_rewardToken].periodFinish);
+    }
+
+    function rewardPerToken(
+        address _rewardToken
+    ) public view returns (uint256) {
+        Reward memory reward = rewards[_rewardToken];
+        if (totalSupply() == 0) {
+            return reward.rewardPerTokenStored;
+        }
+        return
+            reward.rewardPerTokenStored +
+            (((lastTimeRewardApplicable(_rewardToken) - reward.lastUpdateTime) *
+                reward.rewardRate *
+                1e18) / totalSupply());
+    }
+
     function earned(
         address _account,
         address _rewardToken
     ) public view override returns (uint256) {
-        Reward memory reward = rewards[_rewardToken];
         UserReward memory userReward = userRewards[_account][_rewardToken];
         return
             ((balanceOf(_account) *
-                (reward.rewardPerTokenStored -
+                (rewardPerToken(_rewardToken) -
                     userReward.userRewardPerTokenPaid)) / 1e18) +
             userReward.rewards;
     }
@@ -319,12 +310,21 @@ contract BaseRewardPool is IBaseRewardPool, OwnableUpgradeable {
             return;
         }
 
+        rewardInfo.rewardPerTokenStored = rewardPerToken(_rewardToken);
+
         _rewards = _rewards + rewardInfo.queuedRewards;
         rewardInfo.queuedRewards = 0;
 
-        rewardInfo.rewardPerTokenStored =
-            rewardInfo.rewardPerTokenStored +
-            ((_rewards * 1e18) / totalSupply());
+        if (block.timestamp >= rewardInfo.periodFinish) {
+            rewardInfo.rewardRate = _rewards / duration;
+        } else {
+            uint256 remaining = rewardInfo.periodFinish - block.timestamp;
+            uint256 leftover = remaining * rewardInfo.rewardRate;
+            _rewards = _rewards + leftover;
+            rewardInfo.rewardRate = _rewards / duration;
+        }
+        rewardInfo.lastUpdateTime = block.timestamp;
+        rewardInfo.periodFinish = block.timestamp + duration;
         emit RewardAdded(_rewardToken, _rewards);
     }
 

@@ -7,7 +7,7 @@ import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "./Dependencies/WeekMath.sol";
 import "./Interfaces/IBaseRewardPool.sol";
 import "./Interfaces/IPendleDepositor.sol";
-import "./Interfaces/IPendleProxy.sol";
+import "./Interfaces/IPendleProxyMainchain.sol";
 import "./Interfaces/IEqbExternalToken.sol";
 
 contract PendleDepositor is IPendleDepositor, OwnableUpgradeable {
@@ -68,7 +68,7 @@ contract PendleDepositor is IPendleDepositor, OwnableUpgradeable {
             IERC20(pendle).safeTransfer(pendleProxy, pendleBalance);
         }
 
-        IPendleProxy(pendleProxy).lockPendle(
+        IPendleProxyMainchain(pendleProxy).lockPendle(
             WeekMath.getWeekStartTimestamp(
                 uint128(block.timestamp) + MAX_LOCK_TIME
             )
