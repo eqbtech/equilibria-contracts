@@ -17,33 +17,33 @@ contract EqbExternalToken is
     // --- Events ---
     event OperatorUpdated(address _operator);
 
+    modifier onlyOperator() {
+        require(msg.sender == operator, "!auth");
+        _;
+    }
+
     function initialize(
         string memory _name,
-        string memory _symbol
+        string memory _symbol,
+        address _operator
     ) public initializer {
         __Ownable_init();
 
         __ERC20_init_unchained(_name, _symbol);
 
+        operator = _operator;
+
         emit OperatorUpdated(msg.sender);
     }
 
-    function setOperator(address _operator) external onlyOwner {
-        require(operator == address(0), "already set!");
-        operator = _operator;
-
-        emit OperatorUpdated(_operator);
-    }
-
-    function mint(address _to, uint256 _amount) external override {
-        require(msg.sender == operator, "!authorized");
-
+    function mint(address _to, uint256 _amount) external override onlyOperator {
         _mint(_to, _amount);
     }
 
-    function burn(address _from, uint256 _amount) external override {
-        require(msg.sender == operator, "!authorized");
-
+    function burn(
+        address _from,
+        uint256 _amount
+    ) external override onlyOperator {
         _burn(_from, _amount);
     }
 }

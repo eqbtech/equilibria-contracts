@@ -37,6 +37,15 @@ contract PendleBoosterMainchain is PendleBoosterBaseUpg {
         ePendle = _ePendle;
     }
 
+    function _isAllowedClaimer(
+        PoolInfo memory _pool,
+        address _rewardContract
+    ) internal override returns (bool) {
+        return
+            super._isAllowedClaimer(_pool, _rewardContract) ||
+            _rewardContract == ePendleRewardPool;
+    }
+
     function _sendOtherRewards(
         address _rewardToken,
         uint256 _vlEqbIncentiveAmount,

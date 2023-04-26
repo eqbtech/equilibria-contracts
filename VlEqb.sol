@@ -46,35 +46,6 @@ contract VlEqb is IVlEqb, OwnableUpgradeable {
 
     mapping(address => bool) public access;
 
-    event LockCreated(address indexed _user, uint256 _amount, uint256 _weeks);
-
-    event LockExtended(
-        address indexed _user,
-        uint256 _amount,
-        uint256 _oldWeeks,
-        uint256 _newWeeks
-    );
-
-    event Unlocked(
-        address indexed _user,
-        uint256 _amount,
-        uint256 _lastUnlockedWeek
-    );
-
-    event RewardTokenAdded(address indexed _rewardToken);
-
-    event RewardAdded(address indexed _rewardToken, uint256 _reward);
-
-    event RewardPaid(
-        address indexed _user,
-        address indexed _rewardToken,
-        uint256 _reward
-    );
-
-    event AccessSet(address indexed _address, bool _status);
-
-    event Migrated(address indexed _user, uint256 _amount, uint256 _weeks);
-
     function initialize(address _eqb) public initializer {
         require(_eqb != address(0), "invalid _eqb!");
         __Ownable_init();
@@ -373,7 +344,7 @@ contract VlEqb is IVlEqb, OwnableUpgradeable {
     function queueNewRewards(
         address _rewardToken,
         uint256 _rewards
-    ) external payable {
+    ) external payable override {
         require(access[msg.sender], "!auth");
 
         _addRewardToken(_rewardToken);

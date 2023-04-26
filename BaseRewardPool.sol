@@ -3,21 +3,20 @@ pragma solidity 0.8.17;
 
 import "@openzeppelin/contracts/utils/math/Math.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 
 import "./Interfaces/IBaseRewardPool.sol";
 import "./Interfaces/IPendleBooster.sol";
 import "@shared/lib-contracts-v0.8/contracts/Dependencies/TransferHelper.sol";
 
-contract BaseRewardPool is IBaseRewardPool, OwnableUpgradeable {
+contract BaseRewardPool is IBaseRewardPool, AccessControlUpgradeable {
     using SafeERC20 for IERC20;
     using TransferHelper for address;
 
-    address public operator;
     address public booster;
     uint256 public pid;
 
-    IERC20 public override stakingToken;
+    IERC20 public stakingToken;
     address[] public rewardTokens;
 
     uint256 public constant duration = 7 days;
@@ -43,45 +42,48 @@ contract BaseRewardPool is IBaseRewardPool, OwnableUpgradeable {
 
     mapping(address => mapping(address => UserReward)) public userRewards;
 
-    mapping(address => bool) public access;
-
-    mapping(address => bool) public grants;
-
     mapping(address => uint256) public userLastTime;
 
     mapping(address => uint256) public userAmountTime;
 
-    function initialize(address _operator) public initializer {
-        __Ownable_init();
+    bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
+    bytes32 public constant ZAP_ROLE = keccak256("ZAP_ROLE");
 
-        operator = _operator;
+    function initialize(address _booster) public initializer {
+        require(_booster != address(0), "invalid _booster!");
 
-        emit OperatorUpdated(_operator);
+        __AccessControl_init();
+
+        booster = _booster;
+
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _grantRole(ADMIN_ROLE, _booster);
+
+        emit BoosterUpdated(_booster);
     }
 
     function setParams(
-        address _booster,
         uint256 _pid,
         address _stakingToken,
         address _rewardToken
     ) external override {
-        require(msg.sender == owner() || msg.sender == operator, "!auth");
+        require(
+            hasRole(DEFAULT_ADMIN_ROLE, msg.sender) || msg.sender == booster,
+            "!auth"
+        );
 
-        require(booster == address(0), "params has already been set");
-        require(_booster != address(0), "invalid _booster!");
+        require(
+            address(stakingToken) == address(0),
+            "params have already been set"
+        );
+
         require(_stakingToken != address(0), "invalid _stakingToken!");
         require(_rewardToken != address(0), "invalid _rewardToken!");
-
-        booster = _booster;
 
         pid = _pid;
         stakingToken = IERC20(_stakingToken);
 
         addRewardToken(_rewardToken);
-
-        access[_booster] = true;
-
-        emit BoosterUpdated(_booster);
     }
 
     function addRewardToken(address _rewardToken) internal {
@@ -222,9 +224,10 @@ contract BaseRewardPool is IBaseRewardPool, OwnableUpgradeable {
         _withdraw(msg.sender, _balances[msg.sender]);
     }
 
-    function withdrawFor(address _account, uint256 _amount) external override {
-        require(grants[msg.sender], "!auth");
-
+    function withdrawFor(
+        address _account,
+        uint256 _amount
+    ) external override onlyRole(ZAP_ROLE) {
         _withdraw(_account, _amount);
     }
 
@@ -287,9 +290,7 @@ contract BaseRewardPool is IBaseRewardPool, OwnableUpgradeable {
     function queueNewRewards(
         address _rewardToken,
         uint256 _rewards
-    ) external payable override {
-        require(access[msg.sender], "!auth");
-
+    ) external payable override onlyRole(ADMIN_ROLE) {
         addRewardToken(_rewardToken);
 
         if (AddressLib.isPlatformToken(_rewardToken)) {
@@ -326,23 +327,6 @@ contract BaseRewardPool is IBaseRewardPool, OwnableUpgradeable {
         rewardInfo.lastUpdateTime = block.timestamp;
         rewardInfo.periodFinish = block.timestamp + duration;
         emit RewardAdded(_rewardToken, _rewards);
-    }
-
-    function grant(address _address, bool _grant) external onlyOwner {
-        require(_address != address(0), "invalid _address!");
-
-        grants[_address] = _grant;
-        emit Granted(_address, _grant);
-    }
-
-    function setAccess(
-        address _address,
-        bool _status
-    ) external override onlyOwner {
-        require(_address != address(0), "invalid _address!");
-
-        access[_address] = _status;
-        emit AccessSet(_address, _status);
     }
 
     receive() external payable {}

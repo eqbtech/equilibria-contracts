@@ -18,18 +18,19 @@ abstract contract PendleBoosterBaseUpg is IPendleBooster, OwnableUpgradeable {
 
     address public pendle;
 
-    uint256 public vlEqbIncentive; // incentive to eqb lockers
-    uint256 public ePendleIncentive; //incentive to pendle stakers
-    uint256 public platformFee; // possible fee to build treasury
-    uint256 public constant MaxFees = 3500;
-    uint256 public constant DENOMINATOR = 10000;
-
     address public pendleProxy;
     address public eqbMinter;
     address public vlEqb;
     address public treasury;
     address public ePendleRewardPool; // ePendle rewards(pendle)
     address public contributor;
+
+    uint256 public constant DENOMINATOR = 10000;
+    uint256 public constant MaxFees = 3500;
+    uint256 public vlEqbIncentive; // incentive to eqb lockers
+    uint256 public ePendleIncentive; //incentive to pendle stakers
+    uint256 public platformFee; // possible fee to build treasury
+    uint256 public earmarkIncentive; // incentive to earmark caller
 
     bool public isShutdown;
 
@@ -40,10 +41,8 @@ abstract contract PendleBoosterBaseUpg is IPendleBooster, OwnableUpgradeable {
         bool shutdown;
     }
 
-    //index(pid) -> pool
+    // index(pid) -> pool
     PoolInfo[] public override poolInfo;
-
-    uint256 public earmarkIncentive;
 
     bool public earmarkOnOperation;
 
@@ -173,12 +172,7 @@ abstract contract PendleBoosterBaseUpg is IPendleBooster, OwnableUpgradeable {
         uint256 pid = poolInfo.length;
 
         // config pendle rewards
-        IBaseRewardPool(_rewardPool).setParams(
-            address(this),
-            pid,
-            _token,
-            pendle
-        );
+        IBaseRewardPool(_rewardPool).setParams(pid, _token, pendle);
 
         // add the new pool
         poolInfo.push(
@@ -371,10 +365,7 @@ abstract contract PendleBoosterBaseUpg is IPendleBooster, OwnableUpgradeable {
         uint256 _amount
     ) external override {
         PoolInfo memory pool = poolInfo[_pid];
-        require(
-            msg.sender == pool.rewardPool || msg.sender == ePendleRewardPool,
-            "!auth"
-        );
+        require(_isAllowedClaimer(pool, msg.sender), "!auth");
 
         if (_token != pendle || isShutdown) {
             return;
@@ -390,6 +381,13 @@ abstract contract PendleBoosterBaseUpg is IPendleBooster, OwnableUpgradeable {
         if (contributorAmount > 0) {
             IEqbMinter(eqbMinter).mint(contributor, contributorAmount);
         }
+    }
+
+    function _isAllowedClaimer(
+        PoolInfo memory _pool,
+        address _rewardContract
+    ) internal virtual returns (bool) {
+        return _rewardContract == _pool.rewardPool;
     }
 
     function _sendOtherRewards(
