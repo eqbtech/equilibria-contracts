@@ -9,5 +9,15 @@ interface IPendleProxyMainchain is IPendleProxy {
 
     // --- Events ---
     event DepositorUpdated(address _depositor);
+    event EPendleRewardPoolUpdated(address _ePendleRewardPool);
+    event FeeDistributorV2Updated(address _feeDistributorV2);
+    event FeeAdminUpdated(address _feeAdmin);
+    event FeeCollectorUpdated(address _feeCollector);
     event PendleLocked(uint128 _additionalAmountToLock, uint128 _newExpiry);
+
+    event FeesClaimed(
+        address[] _pools,
+        uint256 _totalAmountOut,
+        uint256[] _amountsOut
+    );
 }

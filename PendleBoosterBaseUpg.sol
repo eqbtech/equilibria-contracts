@@ -96,6 +96,11 @@ abstract contract PendleBoosterBaseUpg is IPendleBooster, OwnableUpgradeable {
         earmarkOnOperation = true;
     }
 
+    function setVlEqb(address _vlEqb) external onlyOwner {
+        require(_vlEqb != address(0), "invalid _vlEqb");
+        vlEqb = _vlEqb;
+    }
+
     function setFees(
         uint256 _vlEqbIncentive,
         uint256 _ePendleIncentive,

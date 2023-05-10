@@ -4,6 +4,8 @@ pragma solidity 0.8.17;
 import "./PendleBoosterBaseUpg.sol";
 
 contract PendleBoosterMainchain is PendleBoosterBaseUpg {
+    using TransferHelper for address;
+
     address public pendleDepositor;
     address public ePendle;
 
@@ -58,9 +60,9 @@ contract PendleBoosterMainchain is PendleBoosterBaseUpg {
                 uint256 ePendleAmount = _convertPendleToEPendle(
                     _vlEqbIncentiveAmount
                 );
-                _sendReward(vlEqb, ePendle, ePendleAmount);
+                ePendle.safeTransferToken(vlEqb, ePendleAmount);
             } else {
-                _sendReward(vlEqb, _rewardToken, _vlEqbIncentiveAmount);
+                _rewardToken.safeTransferToken(vlEqb, _vlEqbIncentiveAmount);
             }
         }
 

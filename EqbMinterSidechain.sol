@@ -48,7 +48,7 @@ contract EqbMinterSidechain is EqbMinterBaseUpg {
         emit FactorUpdated(factor);
     }
 
-    function _getFactor() internal view override returns (uint256) {
+    function getFactor() public view override returns (uint256) {
         return factor;
     }
 }

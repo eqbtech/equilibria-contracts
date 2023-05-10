@@ -56,7 +56,7 @@ contract EqbMinterMainchain is EqbMinterBaseUpg {
         if (_chainIds.length == 0) {
             revert Errors.ArrayEmpty();
         }
-        uint256 factor = _getFactor();
+        uint256 factor = getFactor();
         for (uint256 i = 0; i < _chainIds.length; i++) {
             _sendMessage(_chainIds[i], abi.encode(factor));
         }
@@ -93,7 +93,7 @@ contract EqbMinterMainchain is EqbMinterBaseUpg {
         emit TotalMintedAmountUpdated(totalMintedAmount);
     }
 
-    function _getFactor() internal view override returns (uint256) {
+    function getFactor() public view override returns (uint256) {
         return (multiplier * deflation) / DENOMINATOR;
     }
 }

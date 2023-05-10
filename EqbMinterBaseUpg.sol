@@ -69,7 +69,7 @@ abstract contract EqbMinterBaseUpg is
     function mint(address _to, uint256 _amount) external {
         require(access[msg.sender], "!auth");
 
-        uint256 mintAmount = (_amount * _getFactor()) / DENOMINATOR;
+        uint256 mintAmount = (_amount * getFactor()) / DENOMINATOR;
         if (IERC20(eqb).balanceOf(address(this)) < mintAmount) {
             revert Errors.InsufficientBalance(
                 IERC20(eqb).balanceOf(address(this)),
@@ -88,5 +88,5 @@ abstract contract EqbMinterBaseUpg is
 
     function _afterMint() internal virtual {}
 
-    function _getFactor() internal view virtual returns (uint256);
+    function getFactor() public view virtual returns (uint256);
 }

@@ -6,9 +6,6 @@ import "./PendleBoosterBaseUpg.sol";
 contract PendleBoosterSidechain is PendleBoosterBaseUpg {
     using TransferHelper for address;
 
-    address public pendleDepositor;
-    address public ePendle;
-
     function initialize() public initializer {
         __PendleBoosterBaseUpg_init();
     }
