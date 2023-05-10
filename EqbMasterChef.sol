@@ -4,10 +4,15 @@ pragma solidity 0.8.17;
 
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 
 import "./Interfaces/IEqbMasterChef.sol";
 
-contract EqbMasterChef is IEqbMasterChef, OwnableUpgradeable {
+contract EqbMasterChef is
+    IEqbMasterChef,
+    OwnableUpgradeable,
+    ReentrancyGuardUpgradeable
+{
     using SafeERC20 for IERC20;
 
     // Info of each user.
@@ -66,6 +71,8 @@ contract EqbMasterChef is IEqbMasterChef, OwnableUpgradeable {
 
     function initialize() public initializer {
         __Ownable_init();
+
+        __ReentrancyGuard_init_unchained();
     }
 
     function setParams(
@@ -216,7 +223,10 @@ contract EqbMasterChef is IEqbMasterChef, OwnableUpgradeable {
     }
 
     // Deposit LP tokens to MasterChef for EQB allocation.
-    function deposit(uint256 _pid, uint256 _amount) external override {
+    function deposit(
+        uint256 _pid,
+        uint256 _amount
+    ) external override nonReentrant {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
         updatePool(_pid);
@@ -251,7 +261,7 @@ contract EqbMasterChef is IEqbMasterChef, OwnableUpgradeable {
     }
 
     // Withdraw LP tokens from MasterChef.
-    function withdraw(uint256 _pid, uint256 _amount) external {
+    function withdraw(uint256 _pid, uint256 _amount) external nonReentrant {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
         require(user.amount >= _amount, "withdraw: not good");
@@ -279,7 +289,10 @@ contract EqbMasterChef is IEqbMasterChef, OwnableUpgradeable {
         emit Withdraw(msg.sender, _pid, _amount);
     }
 
-    function claim(uint256 _pid, address _account) external override {
+    function claim(
+        uint256 _pid,
+        address _account
+    ) external override nonReentrant {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][_account];
 
@@ -299,7 +312,7 @@ contract EqbMasterChef is IEqbMasterChef, OwnableUpgradeable {
     }
 
     // Withdraw without caring about rewards. EMERGENCY ONLY.
-    function emergencyWithdraw(uint256 _pid) external {
+    function emergencyWithdraw(uint256 _pid) external nonReentrant {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
         pool.lpToken.safeTransfer(address(msg.sender), user.amount);

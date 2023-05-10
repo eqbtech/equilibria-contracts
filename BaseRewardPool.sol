@@ -251,7 +251,7 @@ contract BaseRewardPool is IBaseRewardPool, AccessControlUpgradeable {
     ) public override updateReward(_account) {
         for (uint256 i = 0; i < rewardTokens.length; i++) {
             address rewardToken = rewardTokens[i];
-            uint256 reward = earned(_account, rewardToken);
+            uint256 reward = userRewards[_account][rewardToken].rewards;
             if (reward > 0) {
                 userRewards[_account][rewardToken].rewards = 0;
                 rewardToken.safeTransferToken(_account, reward);
