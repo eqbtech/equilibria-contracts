@@ -6,8 +6,9 @@ import "@openzeppelin/contracts/utils/math/Math.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import "@shared/lib-contracts-v0.8/contracts/Dependencies/ManagerUpgradeable.sol";
+import "./Interfaces/IVestedEscrow.sol";
 
-contract VestedEscrow is ManagerUpgradeable {
+contract VestedEscrow is IVestedEscrow, ManagerUpgradeable {
     using SafeERC20 for IERC20;
 
     uint256 public constant PRECISION = 1e4;
@@ -23,9 +24,6 @@ contract VestedEscrow is ManagerUpgradeable {
 
     mapping(address => uint256) public totalAmounts;
     mapping(address => uint256) public claimedAmounts;
-
-    event Funded(address indexed _recipient, uint256 _amount);
-    event Claimed(address indexed _recipient, uint256 _amount);
 
     function initialize(
         address _token,
@@ -50,7 +48,7 @@ contract VestedEscrow is ManagerUpgradeable {
     function fund(
         address[] calldata _recipients,
         uint256[] calldata _amounts
-    ) external onlyManager {
+    ) external override onlyManager {
         require(
             _recipients.length == _amounts.length && _recipients.length > 0,
             "invalid _recipients or _amounts"
