@@ -34,7 +34,8 @@ contract FairAuction is OwnableUpgradeable, ReentrancyGuardUpgradeable {
     uint256 public totalRaised; // raised amount
 
     uint256 public constant PRECISION = 1e4;
-    uint256 public lockPercent;
+    // initial unlock percentage
+    uint256 public unlockPercent;
     // linear release duration in second
     uint256 public releaseDuration;
 
@@ -53,6 +54,7 @@ contract FairAuction is OwnableUpgradeable, ReentrancyGuardUpgradeable {
     ) public initializer {
         require(_projectToken != address(0), "invalid _projectToken");
         require(_saleToken != address(0), "invalid _saleToken");
+        require(_startTime > _currentBlockTimestamp(), "invalid _startTime");
         require(_startTime < _endTime, "invalid dates");
         require(_treasury != address(0), "invalid _treasury");
 
@@ -76,7 +78,7 @@ contract FairAuction is OwnableUpgradeable, ReentrancyGuardUpgradeable {
         }
         CAP_PER_WALLET = _capPerWallet;
 
-        lockPercent = 5000;
+        unlockPercent = 5000;
         releaseDuration = 180 days;
 
         whitelistOnly = true;
@@ -189,9 +191,9 @@ contract FairAuction is OwnableUpgradeable, ReentrancyGuardUpgradeable {
             claimableAmount = 0;
         } else {
             // initial unlock
-            uint256 initialAmount = (totalAmount * lockPercent) / PRECISION;
+            uint256 unlockAmount = (totalAmount * unlockPercent) / PRECISION;
             // linear release
-            uint256 lockedAmount = totalAmount - initialAmount;
+            uint256 lockedAmount = totalAmount - unlockAmount;
             uint256 timePassed = _currentBlockTimestamp() - END_TIME;
             uint256 releasedAmount = 0;
             if (timePassed >= releaseDuration) {
@@ -199,7 +201,7 @@ contract FairAuction is OwnableUpgradeable, ReentrancyGuardUpgradeable {
             } else {
                 releasedAmount = (lockedAmount * timePassed) / releaseDuration;
             }
-            claimableAmount = initialAmount + releasedAmount - claimedAmount;
+            claimableAmount = unlockAmount + releasedAmount - claimedAmount;
         }
     }
 
@@ -216,11 +218,7 @@ contract FairAuction is OwnableUpgradeable, ReentrancyGuardUpgradeable {
             totalRaised + _amount <= MAX_RAISE_AMOUNT,
             "buy: hardcap reached"
         );
-        require(
-            !address(msg.sender).isContract() &&
-                !address(tx.origin).isContract(),
-            "FORBIDDEN"
-        );
+        require(msg.sender == tx.origin, "FORBIDDEN");
 
         UserInfo storage user = userInfo[msg.sender];
 
