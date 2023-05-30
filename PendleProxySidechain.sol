@@ -11,7 +11,7 @@ contract PendleProxySidechain is PendleProxyBaseUpg {
     function setParams(
         address _pendleMarketFactory,
         address _booster
-    ) external onlyOwner {
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _setParams(_pendleMarketFactory, _booster);
     }
 }

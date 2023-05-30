@@ -7,7 +7,6 @@ import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.
 
 contract FairAuction is OwnableUpgradeable, ReentrancyGuardUpgradeable {
     using SafeERC20 for IERC20;
-    using Address for address;
 
     address public PROJECT_TOKEN; // Project token contract
     address public SALE_TOKEN; // token used to participate
@@ -39,10 +38,12 @@ contract FairAuction is OwnableUpgradeable, ReentrancyGuardUpgradeable {
     // linear release duration in second
     uint256 public releaseDuration;
 
+    // claim start time
+    uint256 public claimStartTime;
+
     bool public whitelistOnly;
 
     function initialize(
-        address _projectToken,
         address _saleToken,
         uint256 _startTime,
         uint256 _endTime,
@@ -52,7 +53,6 @@ contract FairAuction is OwnableUpgradeable, ReentrancyGuardUpgradeable {
         uint256 _maxToRaise,
         uint256 _capPerWallet
     ) public initializer {
-        require(_projectToken != address(0), "invalid _projectToken");
         require(_saleToken != address(0), "invalid _saleToken");
         require(_startTime > _currentBlockTimestamp(), "invalid _startTime");
         require(_startTime < _endTime, "invalid dates");
@@ -62,7 +62,6 @@ contract FairAuction is OwnableUpgradeable, ReentrancyGuardUpgradeable {
 
         __ReentrancyGuard_init_unchained();
 
-        PROJECT_TOKEN = _projectToken;
         SALE_TOKEN = _saleToken;
         START_TIME = _startTime;
         END_TIME = _endTime;
@@ -113,11 +112,7 @@ contract FairAuction is OwnableUpgradeable, ReentrancyGuardUpgradeable {
      * Sale must have ended
      */
     modifier isClaimable() {
-        require(hasEnded(), "isClaimable: sale has not ended");
-        require(
-            IERC20(PROJECT_TOKEN).balanceOf(address(this)) > 0,
-            "isClaimable: sale not filled"
-        );
+        require(claimStartTime > 0, "isClaimable: cannot claim yet");
         _;
     }
 
@@ -187,14 +182,14 @@ contract FairAuction is OwnableUpgradeable, ReentrancyGuardUpgradeable {
             totalRaised;
         claimedAmount = user.claimedAmount;
 
-        if (!hasEnded()) {
+        if (claimStartTime == 0) {
             claimableAmount = 0;
         } else {
             // initial unlock
             uint256 unlockAmount = (totalAmount * unlockPercent) / PRECISION;
             // linear release
             uint256 lockedAmount = totalAmount - unlockAmount;
-            uint256 timePassed = _currentBlockTimestamp() - END_TIME;
+            uint256 timePassed = _currentBlockTimestamp() - claimStartTime;
             uint256 releasedAmount = 0;
             if (timePassed >= releaseDuration) {
                 releasedAmount = lockedAmount;
@@ -296,6 +291,23 @@ contract FairAuction is OwnableUpgradeable, ReentrancyGuardUpgradeable {
     function setReleaseDuration(uint256 _releaseDuration) external onlyOwner {
         require(!hasEnded(), "setReleaseDuration: sale has ended");
         releaseDuration = _releaseDuration;
+    }
+
+    function startClaim(address _projectToken) external onlyOwner {
+        require(_projectToken != address(0), "invalid _projectToken");
+
+        require(hasEnded(), "sale has not ended");
+        require(claimStartTime == 0, "already started");
+
+        PROJECT_TOKEN = _projectToken;
+
+        IERC20(PROJECT_TOKEN).safeTransferFrom(
+            msg.sender,
+            address(this),
+            projectTokensToDistribute()
+        );
+
+        claimStartTime = _currentBlockTimestamp();
     }
 
     /**

@@ -4,13 +4,14 @@ pragma solidity 0.8.17;
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
+import "./Interfaces/IXEqbToken.sol";
+import "@shared/lib-contracts-v0.8/contracts/Dependencies/TransferHelper.sol";
 import "./Interfaces/IPendleBooster.sol";
 import "./Interfaces/IPendleProxy.sol";
 import "./Interfaces/IDepositToken.sol";
 import "./Interfaces/IPendleDepositor.sol";
 import "./Interfaces/IEqbMinter.sol";
 import "./Interfaces/IBaseRewardPool.sol";
-import "@shared/lib-contracts-v0.8/contracts/Dependencies/TransferHelper.sol";
 
 abstract contract PendleBoosterBaseUpg is IPendleBooster, OwnableUpgradeable {
     using SafeERC20 for IERC20;
@@ -20,6 +21,8 @@ abstract contract PendleBoosterBaseUpg is IPendleBooster, OwnableUpgradeable {
 
     address public pendleProxy;
     address public eqbMinter;
+    address public eqb;
+    address public xEqb;
     address public vlEqb;
     address public treasury;
     address public ePendleRewardPool; // ePendle rewards(pendle)
@@ -31,6 +34,9 @@ abstract contract PendleBoosterBaseUpg is IPendleBooster, OwnableUpgradeable {
     uint256 public ePendleIncentive; //incentive to pendle stakers
     uint256 public platformFee; // possible fee to build treasury
     uint256 public earmarkIncentive; // incentive to earmark caller
+
+    uint256 public farmEqbShare;
+    uint256 public teamEqbShare;
 
     bool public isShutdown;
 
@@ -60,6 +66,8 @@ abstract contract PendleBoosterBaseUpg is IPendleBooster, OwnableUpgradeable {
         address _pendle,
         address _pendleProxy,
         address _eqbMinter,
+        address _eqb,
+        address _xEqb,
         address _vlEqb,
         address _ePendleRewardPool,
         address _treasury
@@ -69,6 +77,8 @@ abstract contract PendleBoosterBaseUpg is IPendleBooster, OwnableUpgradeable {
         require(_pendle != address(0), "invalid _pendle!");
         require(_pendleProxy != address(0), "invalid _pendleProxy!");
         require(_eqbMinter != address(0), "invalid _eqbMinter!");
+        require(_eqb != address(0), "invalid _eqb!");
+        require(_xEqb != address(0), "invalid _xEqb!");
         require(_vlEqb != address(0), "invalid _vlEqb!");
         require(
             _ePendleRewardPool != address(0),
@@ -82,6 +92,8 @@ abstract contract PendleBoosterBaseUpg is IPendleBooster, OwnableUpgradeable {
 
         pendleProxy = _pendleProxy;
         eqbMinter = _eqbMinter;
+        eqb = _eqb;
+        xEqb = _xEqb;
         vlEqb = _vlEqb;
 
         ePendleRewardPool = _ePendleRewardPool;
@@ -92,6 +104,9 @@ abstract contract PendleBoosterBaseUpg is IPendleBooster, OwnableUpgradeable {
         ePendleIncentive = 1500;
         platformFee = 250;
         earmarkIncentive = 50;
+
+        farmEqbShare = 2500;
+        teamEqbShare = 5000;
 
         earmarkOnOperation = true;
     }
@@ -138,6 +153,16 @@ abstract contract PendleBoosterBaseUpg is IPendleBooster, OwnableUpgradeable {
         ePendleIncentive = _ePendleIncentive;
         platformFee = _platformFee;
         earmarkIncentive = _earmarkIncentive;
+    }
+
+    function setFarmEqbShare(uint256 _farmEqbShare) external onlyOwner {
+        require(_farmEqbShare <= DENOMINATOR, "invalid _farmEqbShare");
+        farmEqbShare = _farmEqbShare;
+    }
+
+    function setTeamEqbShare(uint256 _teamEqbShare) external onlyOwner {
+        require(_teamEqbShare <= DENOMINATOR, "invalid _teamEqbShare");
+        teamEqbShare = _teamEqbShare;
     }
 
     function setTreasury(address _treasury) external onlyOwner {
@@ -377,14 +402,14 @@ abstract contract PendleBoosterBaseUpg is IPendleBooster, OwnableUpgradeable {
         }
 
         // mint eqb
-        IEqbMinter(eqbMinter).mint(_account, _amount);
+        _mintEqbRewards(_account, _amount, farmEqbShare);
 
         if (contributor == address(0)) {
             return;
         }
         uint256 contributorAmount = _getContributorAmount(pool, _amount);
         if (contributorAmount > 0) {
-            IEqbMinter(eqbMinter).mint(contributor, contributorAmount);
+            _mintEqbRewards(contributor, contributorAmount, teamEqbShare);
         }
     }
 
@@ -393,6 +418,23 @@ abstract contract PendleBoosterBaseUpg is IPendleBooster, OwnableUpgradeable {
         address _rewardContract
     ) internal virtual returns (bool) {
         return _rewardContract == _pool.rewardPool;
+    }
+
+    function _mintEqbRewards(
+        address _to,
+        uint256 _amount,
+        uint256 _share
+    ) internal {
+        // mint eqb
+        uint256 mintAmount = IEqbMinter(eqbMinter).mint(address(this), _amount);
+        uint256 eqbAmount = (mintAmount * _share) / DENOMINATOR;
+        IERC20(eqb).safeTransfer(_to, eqbAmount);
+
+        uint256 xEqbAmount = mintAmount - eqbAmount;
+        _approveTokenIfNeeded(eqb, xEqb, xEqbAmount);
+        IXEqbToken(xEqb).convertTo(xEqbAmount, _to);
+
+        emit EqbRewardsSent(_to, eqbAmount, xEqbAmount);
     }
 
     function _sendOtherRewards(

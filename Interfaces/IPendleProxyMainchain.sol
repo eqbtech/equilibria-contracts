@@ -11,7 +11,6 @@ interface IPendleProxyMainchain is IPendleProxy {
     event DepositorUpdated(address _depositor);
     event EPendleRewardPoolUpdated(address _ePendleRewardPool);
     event FeeDistributorV2Updated(address _feeDistributorV2);
-    event FeeAdminUpdated(address _feeAdmin);
     event FeeCollectorUpdated(address _feeCollector);
     event PendleLocked(uint128 _additionalAmountToLock, uint128 _newExpiry);
 

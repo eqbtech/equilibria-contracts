@@ -26,10 +26,6 @@ abstract contract EqbMinterBaseUpg is
 
     uint256[100] private __gap;
 
-    event Minted(address indexed _to, uint256 _amount);
-    event MintedAmountUpdated(uint256 _amount);
-    event AccessUpdated(address _operator, bool _access);
-
     function __EqbMinterBase_init(
         address _eqb,
         address _eqbMsgSendEndpoint,
@@ -66,15 +62,13 @@ abstract contract EqbMinterBaseUpg is
         emit AccessUpdated(_operator, _access);
     }
 
-    function mint(address _to, uint256 _amount) external {
+    function mint(address _to, uint256 _amount) external returns (uint256) {
         require(access[msg.sender], "!auth");
 
         uint256 mintAmount = (_amount * getFactor()) / DENOMINATOR;
-        if (IERC20(eqb).balanceOf(address(this)) < mintAmount) {
-            revert Errors.InsufficientBalance(
-                IERC20(eqb).balanceOf(address(this)),
-                mintAmount
-            );
+        uint256 eqbBal = IERC20(eqb).balanceOf(address(this));
+        if (eqbBal < mintAmount) {
+            revert Errors.InsufficientBalance(eqbBal, mintAmount);
         }
         IERC20(eqb).safeTransfer(_to, mintAmount);
 
@@ -84,6 +78,8 @@ abstract contract EqbMinterBaseUpg is
 
         emit MintedAmountUpdated(mintedAmount);
         emit Minted(_to, mintAmount);
+
+        return mintAmount;
     }
 
     function _afterMint() internal virtual {}

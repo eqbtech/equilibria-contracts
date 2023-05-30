@@ -33,7 +33,7 @@ contract EqbExternalToken is
 
         operator = _operator;
 
-        emit OperatorUpdated(msg.sender);
+        emit OperatorUpdated(_operator);
     }
 
     function mint(address _to, uint256 _amount) external override onlyOperator {

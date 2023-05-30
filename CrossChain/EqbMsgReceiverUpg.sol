@@ -11,7 +11,7 @@ abstract contract EqbMsgReceiverUpg is IEqbMsgReceiver, OwnableUpgradeable {
 
     uint256[100] private __gap;
 
-    modifier onlyFromeqbMsgReceiveEndpoint() {
+    modifier onlyFromEqbMsgReceiveEndpoint() {
         if (msg.sender != eqbMsgReceiveEndpoint)
             revert Errors.MsgNotFromReceiveEndpoint(msg.sender);
         _;
@@ -35,7 +35,7 @@ abstract contract EqbMsgReceiverUpg is IEqbMsgReceiver, OwnableUpgradeable {
         uint256 _srcChainId,
         address _srcAddr,
         bytes calldata _message
-    ) external virtual onlyFromeqbMsgReceiveEndpoint {
+    ) external virtual onlyFromEqbMsgReceiveEndpoint {
         _executeMessage(_srcChainId, _srcAddr, _message);
     }
 

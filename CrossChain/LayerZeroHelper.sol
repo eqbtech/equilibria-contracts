@@ -2,6 +2,8 @@
 pragma solidity 0.8.17;
 
 library LayerZeroHelper {
+    uint256 constant EVM_ADDRESS_SIZE = 20;
+
     function getLayerZeroChainId(
         uint256 chainId
     ) internal pure returns (uint16) {
@@ -38,5 +40,13 @@ library LayerZeroHelper {
             return 80001;
         }
         assert(false);
+    }
+
+    function getFirstAddressFromPath(
+        bytes memory path
+    ) internal pure returns (address dst) {
+        assembly {
+            dst := mload(add(add(path, EVM_ADDRESS_SIZE), 0))
+        }
     }
 }

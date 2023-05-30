@@ -36,4 +36,9 @@ interface IPendleBooster {
         uint256 _amount
     );
     event TreasurySent(uint256 _pid, address indexed _token, uint256 _amount);
+    event EqbRewardsSent(
+        address indexed _to,
+        uint256 _eqbAmount,
+        uint256 _xEqbAmount
+    );
 }

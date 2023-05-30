@@ -2,14 +2,14 @@
 pragma solidity 0.8.17;
 
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 
 import "./Interfaces/Pendle/IPMarket.sol";
 import "./Interfaces/Pendle/IPMarketFactory.sol";
 import "./Interfaces/IPendleProxy.sol";
 import "@shared/lib-contracts-v0.8/contracts/Dependencies/TransferHelper.sol";
 
-abstract contract PendleProxyBaseUpg is IPendleProxy, OwnableUpgradeable {
+abstract contract PendleProxyBaseUpg is IPendleProxy, AccessControlUpgradeable {
     using SafeERC20 for IERC20;
     using TransferHelper for address;
 
@@ -23,7 +23,9 @@ abstract contract PendleProxyBaseUpg is IPendleProxy, OwnableUpgradeable {
     }
 
     function __PendleProxyBaseUpg_init_unchained() internal onlyInitializing {
-        __Ownable_init_unchained();
+        __AccessControl_init_unchained();
+
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
     modifier onlyBooster() {

@@ -14,6 +14,8 @@ contract PendleBoosterSidechain is PendleBoosterBaseUpg {
         address _pendle,
         address _pendleProxy,
         address _eqbMinter,
+        address _eqb,
+        address _xEqb,
         address _vlEqb,
         address _ePendleRewardPool,
         address _treasury
@@ -22,6 +24,8 @@ contract PendleBoosterSidechain is PendleBoosterBaseUpg {
             _pendle,
             _pendleProxy,
             _eqbMinter,
+            _eqb,
+            _xEqb,
             _vlEqb,
             _ePendleRewardPool,
             _treasury

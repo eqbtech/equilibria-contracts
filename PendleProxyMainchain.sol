@@ -5,6 +5,7 @@ import "@shared/lib-contracts-v0.8/contracts/Dependencies/AddressLib.sol";
 import "./Interfaces/IRewards.sol";
 import "./Interfaces/IPendleProxyMainchain.sol";
 import "./Interfaces/Pendle/IPFeeDistributorV2.sol";
+import "./Interfaces/Pendle/IPVotingController.sol";
 import "./Interfaces/Pendle/IPVotingEscrowMainchain.sol";
 import "./PendleProxyBaseUpg.sol";
 
@@ -12,6 +13,7 @@ contract PendleProxyMainchain is PendleProxyBaseUpg, IPendleProxyMainchain {
     using SafeERC20 for IERC20;
 
     address public pendle;
+    address public pendleVotingController;
 
     address public depositor;
 
@@ -19,8 +21,10 @@ contract PendleProxyMainchain is PendleProxyBaseUpg, IPendleProxyMainchain {
 
     address public feeDistributorV2;
 
-    address public feeAdmin;
     address public feeCollector;
+
+    bytes32 public constant FEE_ADMIN_ROLE = keccak256("FEE_ADMIN_ROLE");
+    bytes32 public constant VOTE_ADMIN_ROLE = keccak256("VOTE_ADMIN_ROLE");
 
     function initialize() public initializer {
         __PendleProxyBaseUpg_init();
@@ -31,53 +35,46 @@ contract PendleProxyMainchain is PendleProxyBaseUpg, IPendleProxyMainchain {
         _;
     }
 
-    modifier onlyFeeAdmin() {
-        require(msg.sender == feeAdmin, "!auth");
-        _;
-    }
-
     function setParams(
         address _pendleMarketFactory,
+        address _pendleVotingController,
         address _booster,
         address _depositor,
         address _ePendleRewardPool,
         address _feeDistributorV2,
-        address _feeAdmin,
         address _feeCollector
-    ) external onlyOwner {
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(
+            _pendleVotingController != address(0),
+            "invalid _pendleVotingController"
+        );
         require(_depositor != address(0), "invalid _depositor!");
         require(
             _ePendleRewardPool != address(0),
             "invalid _ePendleRewardPool!"
         );
         require(_feeDistributorV2 != address(0), "invalid _feeDistributorV2!");
-        require(_feeAdmin != address(0), "invalid _feeAdmin!");
         require(_feeCollector != address(0), "invalid _feeCollector!");
 
         _setParams(_pendleMarketFactory, _booster);
 
         pendle = IPVotingEscrowMainchain(vePendle).pendle();
+        pendleVotingController = _pendleVotingController;
 
         depositor = _depositor;
         ePendleRewardPool = _ePendleRewardPool;
         feeDistributorV2 = _feeDistributorV2;
-        feeAdmin = _feeAdmin;
         feeCollector = _feeCollector;
 
         emit DepositorUpdated(_depositor);
         emit EPendleRewardPoolUpdated(_ePendleRewardPool);
         emit FeeDistributorV2Updated(_feeDistributorV2);
-        emit FeeAdminUpdated(_feeAdmin);
         emit FeeCollectorUpdated(_feeCollector);
     }
 
-    function setFeeAdmin(address _feeAdmin) external onlyOwner {
-        require(_feeAdmin != address(0), "invalid _feeAdmin!");
-        feeAdmin = _feeAdmin;
-        emit FeeAdminUpdated(_feeAdmin);
-    }
-
-    function setFeeCollector(address _feeCollector) external onlyOwner {
+    function setFeeCollector(
+        address _feeCollector
+    ) external onlyRole(FEE_ADMIN_ROLE) {
         require(_feeCollector != address(0), "invalid _feeCollector!");
         feeCollector = _feeCollector;
         emit FeeCollectorUpdated(_feeCollector);
@@ -99,7 +96,14 @@ contract PendleProxyMainchain is PendleProxyBaseUpg, IPendleProxyMainchain {
         emit PendleLocked(uint128(balance), _expiry);
     }
 
-    function claimYTFees() external onlyFeeAdmin {
+    function vote(
+        address[] calldata _pools,
+        uint64[] calldata _weights
+    ) external onlyRole(VOTE_ADMIN_ROLE) {
+        IPVotingController(pendleVotingController).vote(_pools, _weights);
+    }
+
+    function claimYTFees() external onlyRole(FEE_ADMIN_ROLE) {
         address[] memory pools = new address[](1);
         pools[0] = vePendle;
         (
@@ -122,7 +126,9 @@ contract PendleProxyMainchain is PendleProxyBaseUpg, IPendleProxyMainchain {
         emit FeesClaimed(pools, totalAmountOut, amountsOut);
     }
 
-    function claimSwapFees(address[] calldata _pools) external onlyFeeAdmin {
+    function claimSwapFees(
+        address[] calldata _pools
+    ) external onlyRole(FEE_ADMIN_ROLE) {
         for (uint256 i = 0; i < _pools.length; i++) {
             require(_pools[i] != vePendle, "cannot claim vePendle fees!");
         }
