@@ -43,6 +43,7 @@ interface IBaseRewardPool is IRewards {
     event RewardTokenAdded(address indexed _rewardToken);
     event Staked(address indexed _user, uint256 _amount);
     event Withdrawn(address indexed _user, uint256 _amount);
+    event EmergencyWithdrawn(address indexed _user, uint256 _amount);
     event RewardPaid(
         address indexed _user,
         address indexed _rewardToken,

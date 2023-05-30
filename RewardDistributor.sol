@@ -22,6 +22,11 @@ contract RewardDistributor is AccessControlUpgradeable {
     event MerkleRootUpdatedAndFunded(bytes32 _merkleRoot, uint256 _amount);
     event Claimed(address _user, uint256 _amount);
 
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
     function initialize(address _token) public initializer {
         __AccessControl_init();
 

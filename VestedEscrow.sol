@@ -25,6 +25,11 @@ contract VestedEscrow is IVestedEscrow, ManagerUpgradeable {
     mapping(address => uint256) public totalAmounts;
     mapping(address => uint256) public claimedAmounts;
 
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
     function initialize(
         address _token,
         uint256 _startTime,

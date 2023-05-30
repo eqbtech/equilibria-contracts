@@ -17,6 +17,11 @@ abstract contract EqbMsgReceiverUpg is IEqbMsgReceiver, OwnableUpgradeable {
         _;
     }
 
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
     function __EqbMsgReceiver_init(
         address _eqbMsgReceiveEndpoint
     ) internal onlyInitializing {

@@ -26,6 +26,11 @@ abstract contract EqbMinterBaseUpg is
 
     uint256[100] private __gap;
 
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
     function __EqbMinterBase_init(
         address _eqb,
         address _eqbMsgSendEndpoint,

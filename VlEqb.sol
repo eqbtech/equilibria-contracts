@@ -4,12 +4,13 @@ pragma solidity 0.8.17;
 
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 
 import "@shared/lib-contracts-v0.8/contracts/Dependencies/TransferHelper.sol";
 import "./Interfaces/IBaseRewardPool.sol";
 import "./Interfaces/IVlEqb.sol";
 
-contract VlEqb is IVlEqb, OwnableUpgradeable {
+contract VlEqb is IVlEqb, OwnableUpgradeable, ReentrancyGuardUpgradeable {
     using SafeERC20 for IERC20;
     using TransferHelper for address;
 
@@ -46,9 +47,16 @@ contract VlEqb is IVlEqb, OwnableUpgradeable {
 
     mapping(address => bool) public access;
 
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
     function initialize(address _eqb) public initializer {
         require(_eqb != address(0), "invalid _eqb!");
         __Ownable_init();
+
+        __ReentrancyGuard_init_unchained();
 
         eqb = IERC20(_eqb);
     }
@@ -159,7 +167,7 @@ contract VlEqb is IVlEqb, OwnableUpgradeable {
         address _user,
         uint256 _amount,
         uint256 _weeks
-    ) external override {
+    ) external override nonReentrant {
         require(_user != address(0), "invalid _user!");
         require(
             msg.sender == _user || !blockThirdPartyActions[_user],
@@ -205,7 +213,7 @@ contract VlEqb is IVlEqb, OwnableUpgradeable {
         uint256 _amount,
         uint256 _weeks,
         uint256 _newWeeks
-    ) external {
+    ) external nonReentrant {
         require(_weeks > 0, "Min 1 week");
         require(_newWeeks <= MAX_LOCK_WEEKS, "Exceeds MAX_LOCK_WEEKS");
         require(_weeks < _newWeeks, "newWeeks must be greater than weeks");
@@ -223,7 +231,7 @@ contract VlEqb is IVlEqb, OwnableUpgradeable {
         emit LockExtended(msg.sender, _amount, _weeks, _newWeeks);
     }
 
-    function unlock() external {
+    function unlock() external nonReentrant {
         uint256 amount = getUnlockable(msg.sender);
         if (amount != 0) {
             eqb.safeTransfer(msg.sender, amount);
@@ -305,7 +313,7 @@ contract VlEqb is IVlEqb, OwnableUpgradeable {
         emit RewardTokenAdded(_rewardToken);
     }
 
-    function getReward(address _user) external {
+    function getReward(address _user) external nonReentrant {
         uint256 userLastClaimedWeek = lastClaimedWeek[_user];
         if (
             userLastClaimedWeek == 0 ||
@@ -326,7 +334,10 @@ contract VlEqb is IVlEqb, OwnableUpgradeable {
         lastClaimedWeek[_user] = _getCurWeek() - WEEK;
     }
 
-    function donate(address _rewardToken, uint256 _amount) external payable {
+    function donate(
+        address _rewardToken,
+        uint256 _amount
+    ) external payable nonReentrant {
         require(isRewardToken[_rewardToken], "invalid token");
         if (AddressLib.isPlatformToken(_rewardToken)) {
             require(_amount == msg.value, "invalid amount");
@@ -344,7 +355,7 @@ contract VlEqb is IVlEqb, OwnableUpgradeable {
     function queueNewRewards(
         address _rewardToken,
         uint256 _rewards
-    ) external payable override {
+    ) external payable override nonReentrant {
         require(access[msg.sender], "!auth");
 
         _addRewardToken(_rewardToken);

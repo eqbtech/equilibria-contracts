@@ -26,6 +26,11 @@ contract PendleDepositor is IPendleDepositor, OwnableUpgradeable {
 
     uint128 public constant MAX_LOCK_TIME = 104 weeks;
 
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
     function initialize() public initializer {
         __Ownable_init();
     }

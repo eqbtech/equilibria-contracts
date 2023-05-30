@@ -31,6 +31,11 @@ contract EqbMsgSendEndpoint is IEqbMsgSendEndpoint, OwnableUpgradeable {
         _;
     }
 
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
     function initialize(
         address _refundAddress,
         ILayerZeroEndpoint _lzEndpoint

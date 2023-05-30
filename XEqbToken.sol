@@ -43,6 +43,11 @@ contract XEqbToken is
     mapping(address => uint256) public redeemingAmounts; // User's redeeming amounts
     mapping(address => RedeemInfo[]) public userRedeems; // User's redeeming instances
 
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
     function initialize() public initializer {
         __Ownable_init();
 

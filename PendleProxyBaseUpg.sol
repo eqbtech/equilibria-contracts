@@ -18,6 +18,11 @@ abstract contract PendleProxyBaseUpg is IPendleProxy, AccessControlUpgradeable {
 
     address public booster;
 
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
     function __PendleProxyBaseUpg_init() internal onlyInitializing {
         __PendleProxyBaseUpg_init_unchained();
     }
@@ -77,22 +82,32 @@ abstract contract PendleProxyBaseUpg is IPendleProxy, AccessControlUpgradeable {
         onlyBooster
         returns (address[] memory rewardTokens, uint256[] memory rewardAmounts)
     {
+        rewardTokens = _getRewardTokens(_market);
+        uint256[] memory rewardTokensBalBefore = new uint256[](
+            rewardTokens.length
+        );
+        for (uint256 i = 0; i < rewardTokens.length; i++) {
+            rewardTokensBalBefore[i] = TransferHelper.balanceOf(
+                rewardTokens[i],
+                address(this)
+            );
+        }
+
         IPMarket(_market).redeemRewards(address(this));
 
-        rewardTokens = _getRewardTokens(_market);
         rewardAmounts = new uint256[](rewardTokens.length);
 
         for (uint256 i = 0; i < rewardTokens.length; i++) {
             address rewardToken = rewardTokens[i];
-            uint256 rewardTokenBalance = TransferHelper.balanceOf(
+            uint256 rewardTokenAmount = TransferHelper.balanceOf(
                 rewardToken,
                 address(this)
-            );
-            rewardAmounts[i] = rewardTokenBalance;
-            if (rewardTokenBalance == 0) {
+            ) - rewardTokensBalBefore[i];
+            rewardAmounts[i] = rewardTokenAmount;
+            if (rewardTokenAmount == 0) {
                 continue;
             }
-            rewardToken.safeTransferToken(booster, rewardTokenBalance);
+            rewardToken.safeTransferToken(booster, rewardTokenAmount);
         }
 
         emit RewardsClaimed(_market, rewardTokens, rewardAmounts);

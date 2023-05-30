@@ -52,6 +52,11 @@ abstract contract PendleBoosterBaseUpg is IPendleBooster, OwnableUpgradeable {
 
     bool public earmarkOnOperation;
 
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
     function __PendleBoosterBaseUpg_init() internal onlyInitializing {
         __PendleBoosterBaseUpg_init_unchained();
     }

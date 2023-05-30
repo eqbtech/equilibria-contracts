@@ -54,6 +54,11 @@ contract EqbMsgReceiveEndpoint is ILayerZeroReceiver, OwnableUpgradeable {
         _;
     }
 
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
     // by default we will use LZ's default version (most updated version). Hence, it's not necessary
     // to call setLzReceiveVersion
     function initialize(address _lzEndpoint) external initializer {

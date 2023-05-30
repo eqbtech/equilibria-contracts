@@ -10,6 +10,11 @@ import "./Interfaces/IDepositToken.sol";
 contract DepositToken is IDepositToken, ERC20Upgradeable, OwnableUpgradeable {
     address public operator;
 
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
     function initialize(
         address _operator,
         address _lptoken

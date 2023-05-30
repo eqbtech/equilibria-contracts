@@ -31,6 +31,11 @@ abstract contract EqbMsgSenderUpg is OwnableUpgradeable {
         }
     }
 
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
     function __EqbMsgSender_init(
         address _eqbMsgSendEndpoint,
         uint256 _approxDstExecutionGas

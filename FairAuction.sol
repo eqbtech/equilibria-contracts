@@ -43,6 +43,11 @@ contract FairAuction is OwnableUpgradeable, ReentrancyGuardUpgradeable {
 
     bool public whitelistOnly;
 
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
     function initialize(
         address _saleToken,
         uint256 _startTime,

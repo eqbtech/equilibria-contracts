@@ -49,6 +49,11 @@ contract BaseRewardPool is IBaseRewardPool, AccessControlUpgradeable {
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
     bytes32 public constant ZAP_ROLE = keccak256("ZAP_ROLE");
 
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
     function initialize(address _booster) public initializer {
         require(_booster != address(0), "invalid _booster!");
 
@@ -217,23 +222,32 @@ contract BaseRewardPool is IBaseRewardPool, AccessControlUpgradeable {
     }
 
     function withdraw(uint256 amount) external override {
-        _withdraw(msg.sender, amount);
+        _withdraw(msg.sender, amount, true);
     }
 
     function withdrawAll() external override {
-        _withdraw(msg.sender, _balances[msg.sender]);
+        _withdraw(msg.sender, _balances[msg.sender], true);
     }
 
     function withdrawFor(
         address _account,
         uint256 _amount
     ) external override onlyRole(ZAP_ROLE) {
-        _withdraw(_account, _amount);
+        _withdraw(_account, _amount, true);
+    }
+
+    // Withdraw without caring about rewards. EMERGENCY ONLY.
+    function emergencyWithdraw() external {
+        uint256 _amount = _balances[msg.sender];
+        _withdraw(msg.sender, _amount, false);
+
+        emit EmergencyWithdrawn(msg.sender, _amount);
     }
 
     function _withdraw(
         address _account,
-        uint256 _amount
+        uint256 _amount,
+        bool _reward
     ) internal updateReward(_account) {
         require(_amount > 0, "RewardPool : Cannot withdraw 0");
 
@@ -243,12 +257,18 @@ contract BaseRewardPool is IBaseRewardPool, AccessControlUpgradeable {
         stakingToken.safeTransfer(_account, _amount);
         emit Withdrawn(_account, _amount);
 
-        getReward(_account);
+        if (_reward) {
+            _getReward(_account);
+        }
     }
 
     function getReward(
         address _account
     ) public override updateReward(_account) {
+        _getReward(_account);
+    }
+
+    function _getReward(address _account) internal {
         for (uint256 i = 0; i < rewardTokens.length; i++) {
             address rewardToken = rewardTokens[i];
             uint256 reward = userRewards[_account][rewardToken].rewards;
