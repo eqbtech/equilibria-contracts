@@ -25,7 +25,8 @@ abstract contract PendleBoosterBaseUpg is IPendleBooster, OwnableUpgradeable {
     address public xEqb;
     address public vlEqb;
     address public treasury;
-    address public ePendleRewardPool; // ePendle rewards(pendle)
+    address public ePendleRewardReceiver; // ePendle rewards receiver
+    address public ePendleRewardPool; // ePendle rewards pool
     address public contributor;
 
     uint256 public constant DENOMINATOR = 10000;
@@ -67,16 +68,17 @@ abstract contract PendleBoosterBaseUpg is IPendleBooster, OwnableUpgradeable {
 
     /// SETTER SECTION ///
 
-    function _setParams(
+    function setParams(
         address _pendle,
         address _pendleProxy,
         address _eqbMinter,
         address _eqb,
         address _xEqb,
         address _vlEqb,
+        address _ePendleRewardReceiver,
         address _ePendleRewardPool,
         address _treasury
-    ) internal {
+    ) external onlyOwner {
         require(pendleProxy == address(0), "params has already been set");
 
         require(_pendle != address(0), "invalid _pendle!");
@@ -85,6 +87,10 @@ abstract contract PendleBoosterBaseUpg is IPendleBooster, OwnableUpgradeable {
         require(_eqb != address(0), "invalid _eqb!");
         require(_xEqb != address(0), "invalid _xEqb!");
         require(_vlEqb != address(0), "invalid _vlEqb!");
+        require(
+            _ePendleRewardReceiver != address(0),
+            "invalid _ePendleRewardReceiver!"
+        );
         require(
             _ePendleRewardPool != address(0),
             "invalid _ePendleRewardPool!"
@@ -101,6 +107,7 @@ abstract contract PendleBoosterBaseUpg is IPendleBooster, OwnableUpgradeable {
         xEqb = _xEqb;
         vlEqb = _vlEqb;
 
+        ePendleRewardReceiver = _ePendleRewardReceiver;
         ePendleRewardPool = _ePendleRewardPool;
 
         treasury = _treasury;
@@ -376,11 +383,18 @@ abstract contract PendleBoosterBaseUpg is IPendleBooster, OwnableUpgradeable {
             // send lp provider reward contract
             _sendReward(pool.rewardPool, rewardToken, rewardAmount);
 
-            _sendOtherRewards(
-                rewardToken,
-                vlEqbIncentiveAmount,
-                ePendleIncentiveAmount
-            );
+            // send to vlEqb
+            if (vlEqbIncentiveAmount > 0) {
+                rewardToken.safeTransferToken(vlEqb, vlEqbIncentiveAmount);
+            }
+
+            // send to ePendle reward contract
+            if (ePendleIncentiveAmount > 0) {
+                rewardToken.safeTransferToken(
+                    ePendleRewardReceiver,
+                    ePendleIncentiveAmount
+                );
+            }
         }
     }
 
@@ -400,7 +414,10 @@ abstract contract PendleBoosterBaseUpg is IPendleBooster, OwnableUpgradeable {
         uint256 _amount
     ) external override {
         PoolInfo memory pool = poolInfo[_pid];
-        require(_isAllowedClaimer(pool, msg.sender), "!auth");
+        require(
+            msg.sender == pool.rewardPool || msg.sender == ePendleRewardPool,
+            "!auth"
+        );
 
         if (_token != pendle || isShutdown) {
             return;
@@ -416,13 +433,6 @@ abstract contract PendleBoosterBaseUpg is IPendleBooster, OwnableUpgradeable {
         if (contributorAmount > 0) {
             _mintEqbRewards(contributor, contributorAmount, teamEqbShare);
         }
-    }
-
-    function _isAllowedClaimer(
-        PoolInfo memory _pool,
-        address _rewardContract
-    ) internal virtual returns (bool) {
-        return _rewardContract == _pool.rewardPool;
     }
 
     function _mintEqbRewards(
@@ -441,12 +451,6 @@ abstract contract PendleBoosterBaseUpg is IPendleBooster, OwnableUpgradeable {
 
         emit EqbRewardsSent(_to, eqbAmount, xEqbAmount);
     }
-
-    function _sendOtherRewards(
-        address _rewardToken,
-        uint256 _vlEqbIncentiveAmount,
-        uint256 _ePendleIncentiveAmount
-    ) internal virtual;
 
     function _sendReward(
         address _rewardPool,

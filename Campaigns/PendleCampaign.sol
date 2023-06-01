@@ -119,6 +119,9 @@ contract PendleCampaign is AccessControlUpgradeable {
         periodFinish = block.timestamp;
 
         IERC20(eqb).safeTransferFrom(msg.sender, address(this), totalReward);
+
+        _approveTokenIfNeeded(pendle, pendleDepositor, _totalSupply);
+        IPendleDepositor(pendleDepositor).deposit(_totalSupply, false);
     }
 
     function emergencyShutdown() external onlyRole(SHUTDOWN_ROLE) {
@@ -180,6 +183,7 @@ contract PendleCampaign is AccessControlUpgradeable {
 
     function stake(uint256 _amount) external updateReward(msg.sender) {
         require(_amount > 0, "Cannot stake 0");
+        require(periodFinish == 0, "campaign has ended");
 
         _totalSupply = _totalSupply + _amount;
         _balances[msg.sender] = _balances[msg.sender] + _amount;
@@ -217,8 +221,6 @@ contract PendleCampaign is AccessControlUpgradeable {
         _totalSupply = _totalSupply - amount;
         _balances[msg.sender] = 0;
 
-        _approveTokenIfNeeded(pendle, pendleDepositor, amount);
-        IPendleDepositor(pendleDepositor).deposit(amount, false);
         IERC20(ePendle).safeTransfer(msg.sender, amount);
         emit Withdrawn(msg.sender, amount);
 

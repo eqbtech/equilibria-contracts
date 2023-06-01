@@ -172,6 +172,7 @@ contract PendleCampaignSidechain is AccessControlUpgradeable {
 
     function stake(uint256 _amount) external updateReward(msg.sender) {
         require(_amount > 0, "Cannot stake 0");
+        require(periodFinish == 0, "campaign has ended");
 
         _totalSupply = _totalSupply + _amount;
         _balances[msg.sender] = _balances[msg.sender] + _amount;
@@ -194,8 +195,6 @@ contract PendleCampaignSidechain is AccessControlUpgradeable {
     }
 
     function adminWithdrawPendle() external onlyRole(ADMIN_ROLE) {
-        require(periodFinish > 0, "campaign is still running");
-
         IERC20(pendle).safeTransfer(
             msg.sender,
             IERC20(pendle).balanceOf(address(this))
