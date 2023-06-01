@@ -44,6 +44,8 @@ contract EqbMsgSendEndpoint is IEqbMsgSendEndpoint, OwnableUpgradeable {
 
         refundAddress = payable(_refundAddress);
         lzEndpoint = _lzEndpoint;
+
+        setLzSendVersion(2);
     }
 
     function calcFee(
@@ -94,7 +96,7 @@ contract EqbMsgSendEndpoint is IEqbMsgSendEndpoint, OwnableUpgradeable {
         isWhitelisted[_addr] = _status;
     }
 
-    function setLzSendVersion(uint16 _newVersion) external onlyOwner {
+    function setLzSendVersion(uint16 _newVersion) public onlyOwner {
         ILayerZeroEndpoint(lzEndpoint).setSendVersion(_newVersion);
     }
 

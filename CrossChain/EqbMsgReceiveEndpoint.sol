@@ -59,12 +59,12 @@ contract EqbMsgReceiveEndpoint is ILayerZeroReceiver, OwnableUpgradeable {
         _disableInitializers();
     }
 
-    // by default we will use LZ's default version (most updated version). Hence, it's not necessary
-    // to call setLzReceiveVersion
     function initialize(address _lzEndpoint) external initializer {
         __Ownable_init();
 
         lzEndpoint = _lzEndpoint;
+
+        setLzReceiveVersion(2);
     }
 
     function lzReceive(
@@ -91,7 +91,7 @@ contract EqbMsgReceiveEndpoint is ILayerZeroReceiver, OwnableUpgradeable {
         sendEndpoints.set(_endpointChainId, _endpointAddr);
     }
 
-    function setLzReceiveVersion(uint16 _newVersion) external onlyOwner {
+    function setLzReceiveVersion(uint16 _newVersion) public onlyOwner {
         ILayerZeroEndpoint(lzEndpoint).setReceiveVersion(_newVersion);
     }
 

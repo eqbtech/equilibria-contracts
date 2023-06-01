@@ -11,6 +11,11 @@ interface IPendleProxy {
         address _market
     ) external returns (address[] memory, uint256[] memory);
 
+    function claimRewardsManually(
+        address _market,
+        uint256[] memory _amounts
+    ) external returns (address[] memory rewardTokens);
+
     // --- Events ---
     event BoosterUpdated(address _booster);
 

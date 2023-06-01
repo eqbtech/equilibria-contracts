@@ -261,7 +261,7 @@ abstract contract PendleBoosterBaseUpg is IPendleBooster, OwnableUpgradeable {
         require(pool.shutdown == false, "pool is closed");
 
         if (earmarkOnOperation) {
-            _earmarkRewards(_pid, address(0));
+            _earmarkRewards(_pid, address(0), new uint256[](0));
         }
 
         // send to proxy
@@ -304,7 +304,7 @@ abstract contract PendleBoosterBaseUpg is IPendleBooster, OwnableUpgradeable {
         IDepositToken(token).burn(_from, _amount);
 
         if (earmarkOnOperation) {
-            _earmarkRewards(_pid, address(0));
+            _earmarkRewards(_pid, address(0), new uint256[](0));
         }
 
         // return market tokens
@@ -324,16 +324,26 @@ abstract contract PendleBoosterBaseUpg is IPendleBooster, OwnableUpgradeable {
     }
 
     // disperse pendle and extra rewards to reward contracts
-    function _earmarkRewards(uint256 _pid, address _caller) internal {
+    function _earmarkRewards(
+        uint256 _pid,
+        address _caller,
+        uint256[] memory _rewardAmounts
+    ) internal {
         PoolInfo memory pool = poolInfo[_pid];
-        (
-            address[] memory rewardTokens,
-            uint256[] memory rewardAmounts
-        ) = IPendleProxy(pendleProxy).claimRewards(pool.market);
+        address[] memory rewardTokens;
+        if (_rewardAmounts.length > 0) {
+            rewardTokens = IPendleProxy(pendleProxy).claimRewardsManually(
+                pool.market,
+                _rewardAmounts
+            );
+        } else {
+            (rewardTokens, _rewardAmounts) = IPendleProxy(pendleProxy)
+                .claimRewards(pool.market);
+        }
 
         for (uint256 i = 0; i < rewardTokens.length; i++) {
             address rewardToken = rewardTokens[i];
-            uint256 rewardAmount = rewardAmounts[i];
+            uint256 rewardAmount = _rewardAmounts[i];
             if (rewardToken == address(0) || rewardAmount == 0) {
                 continue;
             }
@@ -403,7 +413,14 @@ abstract contract PendleBoosterBaseUpg is IPendleBooster, OwnableUpgradeable {
         PoolInfo memory pool = poolInfo[_pid];
         require(pool.shutdown == false, "pool is closed");
 
-        _earmarkRewards(_pid, msg.sender);
+        _earmarkRewards(_pid, msg.sender, new uint256[](0));
+    }
+
+    function earmarkRewardsManually(
+        uint256 _pid,
+        uint256[] memory _amounts
+    ) external onlyOwner {
+        _earmarkRewards(_pid, address(0), _amounts);
     }
 
     // callback from reward contract when pendle is received.

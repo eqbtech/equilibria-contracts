@@ -113,6 +113,18 @@ abstract contract PendleProxyBaseUpg is IPendleProxy, AccessControlUpgradeable {
         emit RewardsClaimed(_market, rewardTokens, rewardAmounts);
     }
 
+    function claimRewardsManually(
+        address _market,
+        uint256[] memory _amounts
+    ) external override onlyBooster returns (address[] memory rewardTokens) {
+        rewardTokens = _getRewardTokens(_market);
+        require(rewardTokens.length == _amounts.length, "invalid _amounts!");
+        for (uint256 i = 0; i < rewardTokens.length; i++) {
+            rewardTokens[i].safeTransferToken(booster, _amounts[i]);
+        }
+        emit RewardsClaimed(_market, rewardTokens, _amounts);
+    }
+
     function _getRewardTokens(
         address _market
     ) public view returns (address[] memory) {
