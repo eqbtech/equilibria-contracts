@@ -18,7 +18,7 @@ contract EqbToken is ERC20Upgradeable, OwnableUpgradeable {
 
         __ERC20_init_unchained("Equilibria Token", "EQB");
 
-        _mint(_incentivesAddr, 615e23);
-        _mint(_othersAddr, 385e23);
+        _mint(_incentivesAddr, 735e23);
+        _mint(_othersAddr, 265e23);
     }
 }
