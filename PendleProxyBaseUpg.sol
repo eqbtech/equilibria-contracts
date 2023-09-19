@@ -127,7 +127,7 @@ abstract contract PendleProxyBaseUpg is IPendleProxy, AccessControlUpgradeable {
 
     function _getRewardTokens(
         address _market
-    ) public view returns (address[] memory) {
+    ) internal view returns (address[] memory) {
         address[] memory rewardTokens = IPMarket(_market).getRewardTokens();
         for (uint256 i = 0; i < rewardTokens.length; i++) {
             if (rewardTokens[i] == address(0)) {

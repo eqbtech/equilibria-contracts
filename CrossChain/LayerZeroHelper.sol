@@ -19,6 +19,15 @@ library LayerZeroHelper {
         } else if (chainId == 80001) {
             // mumbai testnet
             return 10109;
+        } else if (chainId == 56) {
+            // binance smart chain
+            return 102;
+        } else if (chainId == 5000) {
+            // mantle
+            return 181;
+        } else if (chainId == 10) {
+            // optimism
+            return 111;
         }
         assert(false);
     }
@@ -38,6 +47,15 @@ library LayerZeroHelper {
         } else if (chainId == 10109) {
             // mumbai testnet
             return 80001;
+        } else if (chainId == 102) {
+            // binance smart chain
+            return 56;
+        } else if (chainId == 181) {
+            // mantle
+            return 5000;
+        } else if (chainId == 111) {
+            // optimism
+            return 10;
         }
         assert(false);
     }
