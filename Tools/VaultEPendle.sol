@@ -249,13 +249,17 @@ contract VaultEPendle is
             if (rewardTokenAmount <= 0) {
                 continue;
             }
-            //reinvest reward if reward token is weth
-            if (address(weth) == ePendleRewardTokens[i]) {
-                //step1: swap weth to pendle
-                uint256 pendleAmount = _swapWETH2Pendle(rewardTokenAmount);
+            //reinvest reward if reward token is weth or pendle
+            if (address(weth) == ePendleRewardTokens[i] ||
+                address(pendle) == ePendleRewardTokens[i]) {
+                //step1: swap weth to pendle if reward token is weth
+                uint256 pendleToConvertAmount = rewardTokenAmount;
+                if(address(weth) == ePendleRewardTokens[i]){
+                    pendleToConvertAmount = _swapWETH2Pendle(rewardTokenAmount);
+                }
                 //step2: swap pendle to ependle through smart convertor
-                pendle.safeApprove(address(smartConvertor), pendleAmount);
-                uint256 obtainedEPendle = smartConvertor.deposit(pendleAmount);
+                pendle.safeApprove(address(smartConvertor), pendleToConvertAmount);
+                uint256 obtainedEPendle = smartConvertor.deposit(pendleToConvertAmount);
                 //step3: reinvest
                 ependle.safeApprove(
                     address(ePendleRewardPool),
@@ -263,7 +267,7 @@ contract VaultEPendle is
                 );
                 ePendleRewardPool.stake(obtainedEPendle);
             } else {
-                //queue reward if reward is not weth
+                //queue reward if reward is not weth or pendle
                 _queueNewRewards(ePendleRewardTokens[i], rewardTokenAmount);
             }
 
