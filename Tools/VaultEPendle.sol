@@ -9,7 +9,7 @@ import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.
 import "@shared/lib-contracts-v0.8/contracts/Dependencies/TransferHelper.sol";
 import "../Interfaces/IBaseRewardPool.sol";
 import "../Interfaces/ISmartConvertor.sol";
-import "../Interfaces/Balancer/IBalancer.sol";
+import "../Interfaces/Balancer/IBalancerVault.sol";
 
 contract VaultEPendle is
     ERC20Upgradeable,
@@ -24,7 +24,7 @@ contract VaultEPendle is
     IERC20 public weth;
     IERC20 public eqb;
     IERC20 public xEqb;
-    IBalancer public balancer;
+    IBalancerVault public balancer;
     IBaseRewardPool public ePendleRewardPool;
     ISmartConvertor public smartConvertor;
 
@@ -34,7 +34,7 @@ contract VaultEPendle is
     uint256 public constant FEE_PRECISION = 1e6;
     uint256 public harvestFeeRate;
     uint256 public withdrawalFeeRate;
-    bytes32 private balancerPool;
+    bytes32 private banlancerWethPendlePoolId;
 
     event Deposited(address indexed _user, uint256 _amount);
     event Withdrawn(
@@ -99,7 +99,7 @@ contract VaultEPendle is
         address _smartConvertor,
         address _eqb,
         address _xEqb,
-        bytes32 _balancerPool
+        bytes32 _banlancerWethPendlePoolId
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         require(_pendle != address(0), "invalid _pendle!");
         require(_ependle != address(0), "invalid _ependle!");
@@ -119,10 +119,10 @@ contract VaultEPendle is
         weth = IERC20(_wethAddr);
         eqb = IERC20(_eqb);
         xEqb = IERC20(_xEqb);
-        balancer = IBalancer(_balancerAddr);
+        balancer = IBalancerVault(_balancerAddr);
         ePendleRewardPool = IBaseRewardPool(_ePendleRewardPool);
         feeRecipient = _feeRecipient;
-        balancerPool = _balancerPool;
+        banlancerWethPendlePoolId = _banlancerWethPendlePoolId;
 
         smartConvertor = ISmartConvertor(_smartConvertor);
         userHarvest = true;
@@ -279,6 +279,13 @@ contract VaultEPendle is
         }
     }
 
+    function queueNewRewards(
+        address _rewardToken,
+        uint256 _rewards
+    ) external onlyRole(ADMIN_ROLE) {
+        _queueNewRewards(_rewardToken,_rewards);
+    }
+
     function _queueNewRewards(address _rewardToken, uint256 _rewards) internal {
         _addRewardToken(_rewardToken);
 
@@ -354,14 +361,14 @@ contract VaultEPendle is
         if (_amount == 0) {
             return _amount;
         }
-        IBalancer.SingleSwap memory singleSwap;
-        singleSwap.poolId = balancerPool;
-        singleSwap.kind = IBalancer.SwapKind.GIVEN_IN;
+        IBalancerVault.SingleSwap memory singleSwap;
+        singleSwap.poolId = banlancerWethPendlePoolId;
+        singleSwap.kind = IBalancerVault.SwapKind.GIVEN_IN;
         singleSwap.assetIn = IAsset(address(weth));
         singleSwap.assetOut = IAsset(address(pendle));
         singleSwap.amount = _amount;
 
-        IBalancer.FundManagement memory funds;
+        IBalancerVault.FundManagement memory funds;
         funds.sender = address(this);
         funds.fromInternalBalance = false;
         funds.recipient = payable(address(this));

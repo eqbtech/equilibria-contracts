@@ -19,7 +19,7 @@ interface IPoolInformation {
         bool tokenAIn,
         bool exactOutput,
         uint256 sqrtPriceLimit
-    ) external returns (uint256 returnAmount);
+    ) external view returns (uint256 returnAmount);
 
     function calculateMultihopSwap(
         bytes memory path,

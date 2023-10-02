@@ -13,29 +13,22 @@ import "../Interfaces/IPendleDepositor.sol";
 contract SmartConvertor is ISmartConvertor, AccessControlUpgradeable {
     using SafeERC20 for IERC20;
 
-    IPoolInformation poolInformation;
+    IPoolInformation maverickPoolInformation;
 
-    IERC20 public pendle;
-    IERC20 public ePendle;
+    address public pendle;
+    address public ePendle;
     IMaverickRouter public router;
-    IPool public swapPool;
+    IPool public maverickPendleEpendlePool;
     IPendleDepositor public pendleDepositor;
     uint256 public swapThreshold;
+    uint256 public maxSwapAmount;
 
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
-
-    event EPendleObtained(
-        address _user,
-        uint256 _depositedPendle,
-        uint256 _obtainedFromDexAmount,
-        uint256 _obtainedFromDepositAmount
-    );
-
-    event SwapThresholdChanged(uint256 _swapThreshold);
 
     function initialize() public initializer {
         __AccessControl_init();
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _grantRole(ADMIN_ROLE, msg.sender);
     }
 
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -47,26 +40,34 @@ contract SmartConvertor is ISmartConvertor, AccessControlUpgradeable {
         address _pendle,
         address _ePendle,
         address _router,
-        address _poolInformation,
-        address _swapPool,
+        address _maverickPoolInformation,
+        address _maverickPendleEpendlePool,
         address _pendleDepositor
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         require(_pendle != address(0), "invalid _pendle!");
         require(_ePendle != address(0), "invalid _ePendle!");
         require(_router != address(0), "invalid _router!");
-        require(_poolInformation != address(0), "invalid _poolInformation!");
-        require(_swapPool != address(0), "invalid _swapPool!");
+        require(
+            _maverickPoolInformation != address(0),
+            "invalid _maverickPoolInformation!"
+        );
+        require(
+            _maverickPendleEpendlePool != address(0),
+            "invalid _maverickPendleEpendlePool!"
+        );
         require(_pendleDepositor != address(0), "invalid _pendleDepositor!");
 
-        pendle = IERC20(_pendle);
-        ePendle = IERC20(_ePendle);
+        pendle = _pendle;
+        ePendle = _ePendle;
         router = IMaverickRouter(_router);
-        swapPool = IPool(_swapPool);
-        poolInformation = IPoolInformation(_poolInformation);
+        maverickPendleEpendlePool = IPool(_maverickPendleEpendlePool);
+        maverickPoolInformation = IPoolInformation(_maverickPoolInformation);
         pendleDepositor = IPendleDepositor(_pendleDepositor);
-        pendle.safeApprove(_router, type(uint256).max);
-        pendle.safeApprove(_pendleDepositor, type(uint256).max);
+        IERC20(ePendle).safeApprove(_router, type(uint256).max);
+        IERC20(pendle).safeApprove(_router, type(uint256).max);
+        IERC20(pendle).safeApprove(_pendleDepositor, type(uint256).max);
         swapThreshold = 105;
+        maxSwapAmount = 50000 * 1e18;
     }
 
     function _depositFor(
@@ -77,34 +78,23 @@ contract SmartConvertor is ISmartConvertor, AccessControlUpgradeable {
         uint256 fromDepositAmount;
         uint256 obtainedFromDexAmount;
 
-        pendle.safeTransferFrom(msg.sender, address(this), _amount);
-
-        //if 1 pendle swap more than 1.05(by default) ePendle in dex
-        if (_estimateOutAmount(_amount) > (_amount * swapThreshold) / 100) {
-            fromDexAmount = Math.min(_amount, maxAmountToBuy());
-        }
-
+        IERC20(pendle).safeTransferFrom(msg.sender, address(this), _amount);
+        fromDexAmount = _convertOutFromDexAmount(_amount);
         fromDepositAmount = _amount - fromDexAmount;
 
         if (fromDexAmount > 0) {
-            IMaverickRouter.ExactInputParams memory exactInputParams;
-            exactInputParams.path = abi.encodePacked(
-                address(pendle),
-                address(swapPool),
-                address(ePendle)
+            obtainedFromDexAmount = _swapTokens(
+                pendle,
+                ePendle,
+                fromDexAmount,
+                estimateOutAmount(pendle, fromDexAmount),
+                _for
             );
-            exactInputParams.recipient = _for;
-            exactInputParams.deadline = block.timestamp;
-            exactInputParams.amountIn = fromDexAmount;
-            exactInputParams.amountOutMinimum = _estimateOutAmount(
-                fromDexAmount
-            );
-            obtainedFromDexAmount = router.exactInput(exactInputParams);
         }
 
         if (fromDepositAmount > 0) {
             pendleDepositor.deposit(fromDepositAmount, false);
-            ePendle.safeTransfer(_for, fromDepositAmount);
+            IERC20(ePendle).safeTransfer(_for, fromDepositAmount);
         }
 
         emit EPendleObtained(
@@ -116,69 +106,42 @@ contract SmartConvertor is ISmartConvertor, AccessControlUpgradeable {
         return obtainedFromDexAmount + fromDepositAmount;
     }
 
-    function _estimateOutAmount(
-        uint256 amountSold
-    ) internal returns (uint256 amountOut) {
+    function estimateTotalConversion(
+        uint256 _amount
+    ) external view override returns (uint256 amountOut) {
+        uint256 amountDexIn = _convertOutFromDexAmount(_amount);
+        return estimateOutAmount(pendle, amountDexIn) + (_amount - amountDexIn);
+    }
+
+    function _convertOutFromDexAmount(
+        uint256 _amount
+    ) internal view returns (uint256) {
+        //if 1 pendle swap more than 1.05(by default) ePendle in dex
+        if (
+            estimateOutAmount(pendle, _amount) > (_amount * swapThreshold) / 100
+        ) {
+            return Math.min(_amount, maxSwapAmount);
+        }
+        //or not swap from dex
+        return 0;
+    }
+
+    function estimateOutAmount(
+        address _tokenIn,
+        uint256 _amountSold
+    ) public view override returns (uint256 amountOut) {
+        require(_tokenIn == pendle || _tokenIn == ePendle, "invalid token");
+        if (_amountSold == 0) {
+            return 0;
+        }
         return
-            poolInformation.calculateSwap(
-                swapPool,
-                uint128(amountSold),
-                _tokenAIsPendle(),
+            maverickPoolInformation.calculateSwap(
+                maverickPendleEpendlePool,
+                uint128(_amountSold),
+                address(maverickPendleEpendlePool.tokenA()) == _tokenIn,
                 false,
                 0
             );
-    }
-
-    function maxAmountToBuy() public view returns (uint256 amountOut) {
-        IPoolInformation.BinInfo[] memory bins = poolInformation.getActiveBins(
-            swapPool,
-            0,
-            0
-        );
-        //step 1: find active bin
-        uint256 activeBinIndex = type(uint256).max;
-        for (uint256 i = 0; i < bins.length; i++) {
-            IPoolInformation.BinInfo memory binInfo = bins[i];
-            if ((binInfo.reserveA > 0 && binInfo.reserveB > 0)) {
-                activeBinIndex = i;
-                break;
-            }
-        }
-
-        if (activeBinIndex == type(uint256).max) {
-            return 0;
-        }
-
-        //step 2: sum all ePendle reserve amount
-        uint256 sumEPendleReserve = 0;
-
-        if (_tokenAIsPendle()) {
-            for (uint256 i = activeBinIndex; i < bins.length; i++) {
-                IPoolInformation.BinInfo memory binInfo = bins[i];
-                (uint256 sqrtPrice, , , uint256 reserveB) = poolInformation
-                    .tickLiquidity(swapPool, binInfo.lowerTick);
-
-                if (sqrtPrice <= 1 * 1e18) {
-                    sumEPendleReserve += reserveB;
-                } else {
-                    break;
-                }
-            }
-        } else {
-            for (uint256 i = activeBinIndex; i >= 0; i--) {
-                IPoolInformation.BinInfo memory binInfo = bins[i];
-                (uint256 sqrtPrice, , uint256 reserveA, ) = poolInformation
-                    .tickLiquidity(swapPool, binInfo.lowerTick);
-
-                if (sqrtPrice >= 1 * 1e18) {
-                    sumEPendleReserve += reserveA;
-                } else {
-                    break;
-                }
-            }
-        }
-
-        return sumEPendleReserve;
     }
 
     function deposit(
@@ -194,6 +157,16 @@ contract SmartConvertor is ISmartConvertor, AccessControlUpgradeable {
         return _depositFor(_amount, _for);
     }
 
+    function swapEPendleForPendle(
+        uint256 _amount,
+        uint256 _amountOutMinimum,
+        address _receiver
+    ) external returns (uint256) {
+        IERC20(ePendle).safeTransferFrom(msg.sender, address(this), _amount);
+        return
+            _swapTokens(ePendle, pendle, _amount, _amountOutMinimum, _receiver);
+    }
+
     function changeSwapThreshold(
         uint256 _swapThreshold
     ) external onlyRole(ADMIN_ROLE) {
@@ -205,7 +178,46 @@ contract SmartConvertor is ISmartConvertor, AccessControlUpgradeable {
         emit SwapThresholdChanged(_swapThreshold);
     }
 
+    function changeMaxSwapAmount(
+        uint256 _maxSwapAmount
+    ) external onlyRole(ADMIN_ROLE) {
+        maxSwapAmount = _maxSwapAmount;
+        emit MaxSwapAmountChanged(_maxSwapAmount);
+    }
+
+    function _swapTokens(
+        address _tokenIn,
+        address _tokenOut,
+        uint256 _amountIn,
+        uint256 _amountOutMinimum,
+        address _receiver
+    ) internal returns (uint256) {
+        IMaverickRouter.ExactInputParams memory exactInputParams;
+        exactInputParams.path = abi.encodePacked(
+            _tokenIn,
+            maverickPendleEpendlePool,
+            _tokenOut
+        );
+        exactInputParams.recipient = _receiver;
+        exactInputParams.deadline = block.timestamp;
+        exactInputParams.amountIn = _amountIn;
+        exactInputParams.amountOutMinimum = _amountOutMinimum;
+
+        uint256 amountOut = router.exactInput(exactInputParams);
+
+        emit TokenSwapped(
+            _tokenIn,
+            _tokenOut,
+            _amountIn,
+            _amountOutMinimum,
+            _receiver,
+            amountOut
+        );
+
+        return amountOut;
+    }
+
     function _tokenAIsPendle() internal view returns (bool) {
-        return (address(swapPool.tokenA()) == address(pendle));
+        return address(maverickPendleEpendlePool.tokenA()) == pendle;
     }
 }
