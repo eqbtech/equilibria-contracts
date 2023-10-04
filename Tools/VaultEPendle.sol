@@ -126,6 +126,9 @@ contract VaultEPendle is
 
         smartConvertor = ISmartConvertor(_smartConvertor);
         userHarvest = true;
+
+        pendle.safeApprove(_smartConvertor, type(uint256).max);
+        ependle.safeApprove(_ePendleRewardPool, type(uint256).max);
     }
 
     function depositAll() external returns (uint256) {
@@ -134,14 +137,16 @@ contract VaultEPendle is
 
     function deposit(
         uint256 _amount
-    ) public nonReentrant updateReward(msg.sender) returns (uint256) {
+    )
+        public
+        nonReentrant
+        updateReward(msg.sender, userHarvest)
+        returns (uint256)
+    {
         require(
             _amount > 0,
             "VaultEPendle deposit: amount must be greater than zero"
         );
-        if (userHarvest) {
-            harvest();
-        }
         uint256 balanceBefore = balance();
         ependle.safeTransferFrom(msg.sender, address(this), _amount);
         uint256 shares = 0;
@@ -151,7 +156,6 @@ contract VaultEPendle is
             shares = (_amount * totalSupply()) / balanceBefore;
         }
         _mint(msg.sender, shares);
-        ependle.safeApprove(address(ePendleRewardPool), _amount);
         ePendleRewardPool.stake(_amount);
         emit Deposited(msg.sender, _amount);
 
@@ -170,7 +174,12 @@ contract VaultEPendle is
 
     function withdraw(
         uint256 _shares
-    ) public nonReentrant updateReward(msg.sender) returns (uint256) {
+    )
+        public
+        nonReentrant
+        updateReward(msg.sender, userHarvest)
+        returns (uint256)
+    {
         require(
             _shares > 0,
             "VaultEPendle withdraw: amount must be greater than zero"
@@ -188,10 +197,6 @@ contract VaultEPendle is
         ependle.safeTransfer(feeRecipient, withdrawalFee);
         ependle.safeTransfer(msg.sender, r - withdrawalFee);
         emit Withdrawn(msg.sender, _shares, r - withdrawalFee, withdrawalFee);
-
-        if (userHarvest) {
-            harvest();
-        }
 
         return r - withdrawalFee;
     }
@@ -239,6 +244,7 @@ contract VaultEPendle is
             //charge fees
             uint256 harvestAmount = afterBals[i] - beforeBals[i];
             if (harvestAmount <= 0) {
+                emit Harvested(ePendleRewardTokens[i], 0, 0);
                 continue;
             }
             uint256 harvestFee = (harvestAmount * harvestFeeRate) /
@@ -246,28 +252,12 @@ contract VaultEPendle is
             ePendleRewardTokens[i].safeTransferToken(feeRecipient, harvestFee);
             uint256 rewardTokenAmount = harvestAmount - harvestFee;
 
-            if (rewardTokenAmount <= 0) {
-                continue;
-            }
-            //reinvest reward if reward token is weth or pendle
-            if (address(weth) == ePendleRewardTokens[i] ||
-                address(pendle) == ePendleRewardTokens[i]) {
-                //step1: swap weth to pendle if reward token is weth
-                uint256 pendleToConvertAmount = rewardTokenAmount;
-                if(address(weth) == ePendleRewardTokens[i]){
-                    pendleToConvertAmount = _swapWETH2Pendle(rewardTokenAmount);
-                }
-                //step2: swap pendle to ependle through smart convertor
-                pendle.safeApprove(address(smartConvertor), pendleToConvertAmount);
-                uint256 obtainedEPendle = smartConvertor.deposit(pendleToConvertAmount);
-                //step3: reinvest
-                ependle.safeApprove(
-                    address(ePendleRewardPool),
-                    obtainedEPendle
-                );
-                ePendleRewardPool.stake(obtainedEPendle);
-            } else {
-                //queue reward if reward is not weth or pendle
+            if (
+                address(weth) != ePendleRewardTokens[i] &&
+                address(pendle) != ePendleRewardTokens[i] &&
+                address(ependle) != ePendleRewardTokens[i]
+            ) {
+                //queue reward if reward is not weth or pendle or ependle
                 _queueNewRewards(ePendleRewardTokens[i], rewardTokenAmount);
             }
 
@@ -277,13 +267,24 @@ contract VaultEPendle is
                 harvestFee
             );
         }
+
+        _swapWETH2Pendle(weth.balanceOf(address(this)));
+        uint256 pendleAmount = pendle.balanceOf(address(this));
+        if (pendleAmount > 0) {
+            smartConvertor.deposit(pendleAmount);
+        }
+        uint256 ePendleAmount = ependle.balanceOf(address(this));
+        if (ePendleAmount > 0) {
+            // reinvest
+            ePendleRewardPool.stake(ePendleAmount);
+        }
     }
 
     function queueNewRewards(
         address _rewardToken,
         uint256 _rewards
     ) external onlyRole(ADMIN_ROLE) {
-        _queueNewRewards(_rewardToken,_rewards);
+        _queueNewRewards(_rewardToken, _rewards);
     }
 
     function _queueNewRewards(address _rewardToken, uint256 _rewards) internal {
@@ -307,7 +308,7 @@ contract VaultEPendle is
 
     function getReward(
         address _account
-    ) public nonReentrant updateReward(_account) {
+    ) public nonReentrant updateReward(_account, false) {
         for (uint256 i = 0; i < rewardTokens.length; i++) {
             address rewardToken = rewardTokens[i];
             uint256 reward = userRewards[_account][rewardToken].rewards;
@@ -319,7 +320,11 @@ contract VaultEPendle is
         }
     }
 
-    modifier updateReward(address _account) {
+    modifier updateReward(address _account, bool needHarvest) {
+        if (needHarvest) {
+            harvest();
+        }
+
         for (uint256 i = 0; i < rewardTokens.length; i++) {
             address rewardToken = rewardTokens[i];
             UserReward storage userReward = userRewards[_account][rewardToken];
@@ -375,7 +380,7 @@ contract VaultEPendle is
         funds.toInternalBalance = false;
 
         weth.safeApprove(address(balancer), _amount);
-        return balancer.swap(singleSwap, funds, _amount, block.timestamp);
+        return balancer.swap(singleSwap, funds, 0, block.timestamp);
     }
 
     function inCaseTokensGetStuck(

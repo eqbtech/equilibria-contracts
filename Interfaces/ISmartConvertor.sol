@@ -44,4 +44,6 @@ interface ISmartConvertor {
     event SwapThresholdChanged(uint256 _swapThreshold);
 
     event MaxSwapAmountChanged(uint256 _maxSwapAmount);
+
+    event MaverickPendleEpendlePoolChanged(address _maverickPendleEpendlePool);
 }

@@ -185,6 +185,16 @@ contract SmartConvertor is ISmartConvertor, AccessControlUpgradeable {
         emit MaxSwapAmountChanged(_maxSwapAmount);
     }
 
+    function changeMaverickPendleEpendlePool(
+        address _maverickPendleEpendlePool
+    ) external onlyRole(ADMIN_ROLE) {
+        require(
+            _maverickPendleEpendlePool != address(0),
+            "invalid _maverickPendleEpendlePool!"
+        );
+        maverickPendleEpendlePool = IPool(_maverickPendleEpendlePool);
+    }
+
     function _swapTokens(
         address _tokenIn,
         address _tokenOut,
