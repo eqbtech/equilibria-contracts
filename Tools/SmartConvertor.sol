@@ -87,7 +87,7 @@ contract SmartConvertor is ISmartConvertor, AccessControlUpgradeable {
                 pendle,
                 ePendle,
                 fromDexAmount,
-                estimateOutAmount(pendle, fromDexAmount),
+                fromDexAmount,
                 _for
             );
         }
