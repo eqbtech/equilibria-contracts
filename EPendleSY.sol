@@ -9,17 +9,6 @@ import "./Interfaces/Balancer/IBalancerVault.sol";
 contract EPendleSY is SYBaseWithRewards {
     using SafeERC20 for IERC20;
 
-    struct ConstructorParams {
-        address pendle;
-        address eqb;
-        address xEqb;
-        address weth;
-        address ePendleRewardPool;
-        address smartConvertor;
-        address balancerVault;
-        bytes32 balancerWethPendlePoolId;
-    }
-
     address public immutable pendle;
     address public immutable ePendle;
     address public immutable eqb;
@@ -34,24 +23,29 @@ contract EPendleSY is SYBaseWithRewards {
         string memory _name,
         string memory _symbol,
         address _ePendle,
-        ConstructorParams memory _constructorParams
+        address _pendle,
+        address _eqb,
+        address _xEqb,
+        address _weth,
+        address _ePendleRewardPool,
+        address _smartConvertor,
+        address _balancerVault,
+        bytes32 _balancerWethPendlePoolId
     ) SYBaseWithRewards(_name, _symbol, _ePendle) {
-        pendle = _constructorParams.pendle;
+        pendle = _pendle;
         ePendle = _ePendle;
-        eqb = _constructorParams.eqb;
-        xEqb = _constructorParams.xEqb;
-        weth = _constructorParams.weth;
-        ePendleRewardPool = IBaseRewardPool(
-            _constructorParams.ePendleRewardPool
-        );
-        smartConvertor = ISmartConvertor(_constructorParams.smartConvertor);
+        eqb = _eqb;
+        xEqb = _xEqb;
+        weth = _weth;
+        ePendleRewardPool = IBaseRewardPool(_ePendleRewardPool);
+        smartConvertor = ISmartConvertor(_smartConvertor);
 
-        balancerVault = _constructorParams.balancerVault;
-        balancerWethPendlePoolId = _constructorParams.balancerWethPendlePoolId;
+        balancerVault = _balancerVault;
+        balancerWethPendlePoolId = _balancerWethPendlePoolId;
 
-        _safeApproveInf(ePendle, _constructorParams.ePendleRewardPool);
-        _safeApproveInf(pendle, _constructorParams.smartConvertor);
-        _safeApproveInf(ePendle, _constructorParams.smartConvertor);
+        _safeApproveInf(ePendle, _ePendleRewardPool);
+        _safeApproveInf(pendle, _smartConvertor);
+        _safeApproveInf(ePendle, _smartConvertor);
     }
 
     /**
