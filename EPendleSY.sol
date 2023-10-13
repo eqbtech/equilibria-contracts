@@ -5,7 +5,6 @@ import "@pendle/core-v2/contracts/core/StandardizedYield/SYBaseWithRewards.sol";
 import "./Interfaces/ISmartConvertor.sol";
 import "./Interfaces/IBaseRewardPool.sol";
 import "./Interfaces/Balancer/IBalancerVault.sol";
-import "./Interfaces/Balancer/IBalancerQueries.sol";
 
 contract EPendleSY is SYBaseWithRewards {
     using SafeERC20 for IERC20;
@@ -18,7 +17,6 @@ contract EPendleSY is SYBaseWithRewards {
         address ePendleRewardPool;
         address smartConvertor;
         address balancerVault;
-        address balancerQueries;
         bytes32 balancerWethPendlePoolId;
     }
 
@@ -29,7 +27,6 @@ contract EPendleSY is SYBaseWithRewards {
     address public immutable weth;
     IBaseRewardPool public immutable ePendleRewardPool;
     address public immutable balancerVault;
-    IBalancerQueries public immutable balancerQueries;
     bytes32 public immutable balancerWethPendlePoolId;
     ISmartConvertor public smartConvertor;
 
@@ -50,7 +47,6 @@ contract EPendleSY is SYBaseWithRewards {
         smartConvertor = ISmartConvertor(_constructorParams.smartConvertor);
 
         balancerVault = _constructorParams.balancerVault;
-        balancerQueries = IBalancerQueries(_constructorParams.balancerQueries);
         balancerWethPendlePoolId = _constructorParams.balancerWethPendlePoolId;
 
         _safeApproveInf(ePendle, _constructorParams.ePendleRewardPool);
@@ -132,14 +128,8 @@ contract EPendleSY is SYBaseWithRewards {
         view
         returns (uint256 totalAssetOwned)
     {
-        uint256 stakedAmount = ePendleRewardPool.balanceOf(address(this));
-        uint256 earnedWeth = ePendleRewardPool.earned(address(this), weth);
-        uint256 earnedPendle = ePendleRewardPool.earned(address(this), pendle);
         totalAssetOwned =
-            stakedAmount +
-            smartConvertor.estimateTotalConversion(
-                earnedPendle + _previewWethToPendle(earnedWeth)
-            ) +
+            ePendleRewardPool.balanceOf(address(this)) +
             _selfBalance(ePendle);
     }
 
@@ -235,33 +225,11 @@ contract EPendleSY is SYBaseWithRewards {
             );
         } else if (tokenIn == pendle) {
             amountSharesOut = _calcSharesOut(
-                smartConvertor.estimateTotalConversion(amountTokenToDeposit),
+                smartConvertor.previewAmountOut(pendle, amountTokenToDeposit),
                 totalSupply(),
                 totalAsset
             );
         }
-    }
-
-    function _previewWethToPendle(
-        uint256 amount
-    ) internal view returns (uint256) {
-        if (amount == 0) {
-            return 0;
-        }
-        IBalancerVault.SingleSwap memory singleSwap;
-        singleSwap.poolId = balancerWethPendlePoolId;
-        singleSwap.kind = IBalancerVault.SwapKind.GIVEN_IN;
-        singleSwap.assetIn = IAsset(weth);
-        singleSwap.assetOut = IAsset(pendle);
-        singleSwap.amount = amount;
-
-        IBalancerVault.FundManagement memory funds;
-        funds.sender = address(this);
-        funds.fromInternalBalance = false;
-        funds.recipient = payable(address(this));
-        funds.toInternalBalance = false;
-
-        return balancerQueries.querySwap(singleSwap, funds);
     }
 
     function _previewRedeem(
@@ -278,7 +246,7 @@ contract EPendleSY is SYBaseWithRewards {
         if (tokenOut == ePendle) {
             amountTokenOut = ePendleOut;
         } else if (tokenOut == pendle) {
-            amountTokenOut = smartConvertor.estimateOutAmount(
+            amountTokenOut = smartConvertor.previewAmountOut(
                 ePendle,
                 ePendleOut
             );

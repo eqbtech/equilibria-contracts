@@ -8,5 +8,5 @@ interface IBalancerQueries {
     function querySwap(
         IBalancerVault.SingleSwap memory singleSwap,
         IBalancerVault.FundManagement memory funds
-    ) external view returns (uint256);
+    ) external returns (uint256);
 }

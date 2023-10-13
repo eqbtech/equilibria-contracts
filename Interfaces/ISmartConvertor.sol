@@ -5,12 +5,12 @@ pragma solidity 0.8.17;
 interface ISmartConvertor {
     function estimateTotalConversion(
         uint256 _amount
-    ) external view returns (uint256 amountOut);
+    ) external returns (uint256 amountOut);
 
-    function estimateOutAmount(
+    function previewAmountOut(
         address _tokenIn,
-        uint256 _amountSold
-    ) external view returns (uint256 amountOut);
+        uint256 _amount
+    ) external view returns (uint256);
 
     function deposit(uint256 _amount) external returns (uint256 obtainedAmount);
 

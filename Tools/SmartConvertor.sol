@@ -13,7 +13,7 @@ import "../Interfaces/IPendleDepositor.sol";
 contract SmartConvertor is ISmartConvertor, AccessControlUpgradeable {
     using SafeERC20 for IERC20;
 
-    IPoolInformation maverickPoolInformation;
+    IPoolInformation public maverickPoolInformation;
 
     address public pendle;
     address public ePendle;
@@ -108,29 +108,27 @@ contract SmartConvertor is ISmartConvertor, AccessControlUpgradeable {
 
     function estimateTotalConversion(
         uint256 _amount
-    ) external view override returns (uint256 amountOut) {
+    ) external override returns (uint256 amountOut) {
         uint256 amountDexIn = _convertOutFromDexAmount(_amount);
-        return estimateOutAmount(pendle, amountDexIn) + (_amount - amountDexIn);
+        return _estimateOutEPendleAmount(amountDexIn) + (_amount - amountDexIn);
     }
 
     function _convertOutFromDexAmount(
         uint256 _amount
-    ) internal view returns (uint256) {
-        //if 1 pendle swap more than 1.05(by default) ePendle in dex
+    ) internal returns (uint256) {
+        // if 1 pendle swap more than 1.05(by default) ePendle in dex
         if (
-            estimateOutAmount(pendle, _amount) > (_amount * swapThreshold) / 100
+            _estimateOutEPendleAmount(_amount) > (_amount * swapThreshold) / 100
         ) {
             return Math.min(_amount, maxSwapAmount);
         }
-        //or not swap from dex
+        // or not swap from dex
         return 0;
     }
 
-    function estimateOutAmount(
-        address _tokenIn,
+    function _estimateOutEPendleAmount(
         uint256 _amountSold
-    ) public view override returns (uint256 amountOut) {
-        require(_tokenIn == pendle || _tokenIn == ePendle, "invalid token");
+    ) internal returns (uint256) {
         if (_amountSold == 0) {
             return 0;
         }
@@ -138,10 +136,33 @@ contract SmartConvertor is ISmartConvertor, AccessControlUpgradeable {
             maverickPoolInformation.calculateSwap(
                 maverickPendleEpendlePool,
                 uint128(_amountSold),
-                address(maverickPendleEpendlePool.tokenA()) == _tokenIn,
+                _tokenAIsPendle(),
                 false,
                 0
             );
+    }
+
+    function previewAmountOut(
+        address _tokenIn,
+        uint256 _amount
+    ) external view override returns (uint256) {
+        require(_tokenIn == pendle || _tokenIn == ePendle, "invalid _tokenIn!");
+        if (_amount == 0) {
+            return 0;
+        }
+        uint256 pendleToEPendlePrice = _getPendleToEPendlePrice();
+        if (_tokenIn == pendle) {
+            uint256 amountDexIn = 0;
+            if ((pendleToEPendlePrice * 100) / 1e18 > swapThreshold) {
+                amountDexIn = Math.min(_amount, maxSwapAmount);
+            }
+            return
+                (amountDexIn * pendleToEPendlePrice) /
+                1e18 +
+                (_amount - amountDexIn);
+        } else {
+            return (_amount * 1e18) / pendleToEPendlePrice;
+        }
     }
 
     function deposit(
@@ -225,6 +246,17 @@ contract SmartConvertor is ISmartConvertor, AccessControlUpgradeable {
         );
 
         return amountOut;
+    }
+
+    function _getPendleToEPendlePrice() internal view returns (uint256) {
+        uint256 sqrtPrice = maverickPoolInformation.getSqrtPrice(
+            maverickPendleEpendlePool
+        );
+        if (_tokenAIsPendle()) {
+            return (1e18 * 1e18 * 1e18) / sqrtPrice / sqrtPrice;
+        } else {
+            return (sqrtPrice * sqrtPrice) / 1e18;
+        }
     }
 
     function _tokenAIsPendle() internal view returns (bool) {
