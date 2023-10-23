@@ -58,20 +58,26 @@ contract EPendleSY is SYBaseWithRewards {
         address tokenIn,
         uint256 amountToDeposit
     ) internal virtual override returns (uint256 amountSharesOut) {
-        if (tokenIn == pendle) {
-            _harvestAndCompound(amountToDeposit);
-        } else {
-            _harvestAndCompound(0);
-        }
+        uint256 harvestedPendleAmount = _harvest();
 
+        uint256 ePendleAmount = 0;
         uint256 ePendleReceived = 0;
         if (tokenIn == pendle) {
-            ePendleReceived = smartConvertor.deposit(amountToDeposit);
+            ePendleAmount = smartConvertor.deposit(
+                amountToDeposit + harvestedPendleAmount
+            );
+            ePendleReceived =
+                (ePendleAmount * amountToDeposit) /
+                (amountToDeposit + harvestedPendleAmount);
         } else if (tokenIn == ePendle) {
+            ePendleAmount = amountToDeposit;
             ePendleReceived = amountToDeposit;
+            if (harvestedPendleAmount > 0) {
+                ePendleAmount += smartConvertor.deposit(harvestedPendleAmount);
+            }
         }
 
-        ePendleRewardPool.stake(ePendleReceived);
+        ePendleRewardPool.stake(ePendleAmount);
 
         // Using total assets before deposit as shares not minted yet
         amountSharesOut = _calcSharesOut(
@@ -86,7 +92,7 @@ contract EPendleSY is SYBaseWithRewards {
         address tokenOut,
         uint256 amountSharesToRedeem
     ) internal virtual override returns (uint256 amountTokenOut) {
-        _harvestAndCompound(0);
+        harvestAndCompound();
         uint256 totalAsset = getTotalAssetOwned();
 
         uint256 priorTotalSupply = totalSupply() + amountSharesToRedeem;
@@ -158,21 +164,21 @@ contract EPendleSY is SYBaseWithRewards {
                             AUTOCOMPOUND FEATURE
     //////////////////////////////////////////////////////////////*/
 
-    function harvestAndCompound() external {
-        _harvestAndCompound(0);
-    }
-
-    function _harvestAndCompound(uint256 amountPendleToNotCompound) internal {
-        // get reward
-        ePendleRewardPool.getReward(address(this));
-        // swap weth to pendle if exists
-        _swapWETH2Pendle(_selfBalance(weth));
+    function harvestAndCompound() public {
+        _harvest();
         // convert & stake
-        uint256 pendleAmount = _selfBalance(pendle) - amountPendleToNotCompound;
+        uint256 pendleAmount = _selfBalance(pendle);
         if (pendleAmount > 0) {
             smartConvertor.deposit(pendleAmount);
             ePendleRewardPool.stake(_selfBalance(ePendle));
         }
+    }
+
+    function _harvest() internal returns (uint256) {
+        // get reward
+        ePendleRewardPool.getReward(address(this));
+        // swap weth to pendle if exists
+        return _swapWETH2Pendle(_selfBalance(weth));
     }
 
     /*///////////////////////////////////////////////////////////////
@@ -195,7 +201,7 @@ contract EPendleSY is SYBaseWithRewards {
     }
 
     function _redeemExternalReward() internal override {
-        _harvestAndCompound(0);
+        harvestAndCompound();
     }
 
     /*///////////////////////////////////////////////////////////////
