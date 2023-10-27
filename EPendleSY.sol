@@ -2,6 +2,9 @@
 pragma solidity 0.8.17;
 
 import "@pendle/core-v2/contracts/core/StandardizedYield/SYBaseWithRewards.sol";
+import "@shared/lib-contracts-v0.8/contracts/Interfaces/IWNative.sol";
+import "@shared/lib-contracts-v0.8/contracts/Dependencies/AddressLib.sol";
+
 import "./Interfaces/ISmartConvertor.sol";
 import "./Interfaces/IBaseRewardPool.sol";
 import "./Interfaces/Balancer/IBalancerVault.sol";
@@ -17,7 +20,7 @@ contract EPendleSY is SYBaseWithRewards {
     IBaseRewardPool public immutable ePendleRewardPool;
     address public immutable balancerVault;
     bytes32 public immutable balancerWethPendlePoolId;
-    ISmartConvertor public smartConvertor;
+    ISmartConvertor public immutable smartConvertor;
 
     constructor(
         string memory _name,
@@ -92,7 +95,7 @@ contract EPendleSY is SYBaseWithRewards {
         address tokenOut,
         uint256 amountSharesToRedeem
     ) internal virtual override returns (uint256 amountTokenOut) {
-        harvestAndCompound();
+        _harvestAndCompound();
         uint256 totalAsset = getTotalAssetOwned();
 
         uint256 priorTotalSupply = totalSupply() + amountSharesToRedeem;
@@ -164,7 +167,7 @@ contract EPendleSY is SYBaseWithRewards {
                             AUTOCOMPOUND FEATURE
     //////////////////////////////////////////////////////////////*/
 
-    function harvestAndCompound() public {
+    function _harvestAndCompound() internal {
         _harvest();
         // convert & stake
         uint256 pendleAmount = _selfBalance(pendle);
@@ -175,10 +178,17 @@ contract EPendleSY is SYBaseWithRewards {
     }
 
     function _harvest() internal returns (uint256) {
+        uint256 pendleBalBefore = _selfBalance(pendle);
         // get reward
         ePendleRewardPool.getReward(address(this));
+        uint256 pendleRewardAmount = _selfBalance(pendle) - pendleBalBefore;
+        // swap weth and eth to pendle if exists
+        uint256 ethBalance = address(this).balance;
+        if (ethBalance > 0) {
+            IWNative(weth).deposit{value: ethBalance}();
+        }
         // swap weth to pendle if exists
-        return _swapWETH2Pendle(_selfBalance(weth));
+        return _swapWETH2Pendle(_selfBalance(weth)) + pendleRewardAmount;
     }
 
     /*///////////////////////////////////////////////////////////////
@@ -195,13 +205,43 @@ contract EPendleSY is SYBaseWithRewards {
         override
         returns (address[] memory res)
     {
-        res = new address[](2);
+        address[] memory rewardTokens = ePendleRewardPool.getRewardTokens();
+        uint256 extraTokenCount = 0;
+        for (uint256 i = 0; i < rewardTokens.length; i++) {
+            address rewardToken = rewardTokens[i];
+            if (_isExtraRewardToken(rewardToken)) {
+                extraTokenCount++;
+            }
+        }
+        res = new address[](2 + extraTokenCount);
         res[0] = eqb;
         res[1] = xEqb;
+        if (extraTokenCount > 0) {
+            uint256 current = 2;
+            for (uint256 i = 0; i < rewardTokens.length; i++) {
+                address rewardToken = rewardTokens[i];
+                if (_isExtraRewardToken(rewardToken)) {
+                    res[current] = rewardToken;
+                    current++;
+                }
+            }
+        }
+    }
+
+    function _isExtraRewardToken(
+        address rewardToken
+    ) internal view returns (bool) {
+        return
+            rewardToken != eqb &&
+            rewardToken != xEqb &&
+            rewardToken != pendle &&
+            rewardToken != ePendle &&
+            rewardToken != weth &&
+            rewardToken != AddressLib.PLATFORM_TOKEN_ADDRESS;
     }
 
     function _redeemExternalReward() internal override {
-        harvestAndCompound();
+        _harvestAndCompound();
     }
 
     /*///////////////////////////////////////////////////////////////

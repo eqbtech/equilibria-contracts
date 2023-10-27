@@ -44,6 +44,7 @@ contract SmartConvertor is ISmartConvertor, AccessControlUpgradeable {
         address _maverickPendleEpendlePool,
         address _pendleDepositor
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(pendle == address(0), "already set!");
         require(_pendle != address(0), "invalid _pendle!");
         require(_ePendle != address(0), "invalid _ePendle!");
         require(_router != address(0), "invalid _router!");
