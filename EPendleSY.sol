@@ -2,8 +2,6 @@
 pragma solidity 0.8.17;
 
 import "@pendle/core-v2/contracts/core/StandardizedYield/SYBaseWithRewards.sol";
-import "@shared/lib-contracts-v0.8/contracts/Interfaces/IWNative.sol";
-import "@shared/lib-contracts-v0.8/contracts/Dependencies/AddressLib.sol";
 
 import "./Interfaces/ISmartConvertor.sol";
 import "./Interfaces/IBaseRewardPool.sol";
@@ -182,11 +180,6 @@ contract EPendleSY is SYBaseWithRewards {
         // get reward
         ePendleRewardPool.getReward(address(this));
         uint256 pendleRewardAmount = _selfBalance(pendle) - pendleBalBefore;
-        // swap weth and eth to pendle if exists
-        uint256 ethBalance = address(this).balance;
-        if (ethBalance > 0) {
-            IWNative(weth).deposit{value: ethBalance}();
-        }
         // swap weth to pendle if exists
         return _swapWETH2Pendle(_selfBalance(weth)) + pendleRewardAmount;
     }
