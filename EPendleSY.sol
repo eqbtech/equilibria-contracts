@@ -205,39 +205,9 @@ contract EPendleSY is SYBaseWithRewards {
         override
         returns (address[] memory res)
     {
-        address[] memory rewardTokens = ePendleRewardPool.getRewardTokens();
-        uint256 extraTokenCount = 0;
-        for (uint256 i = 0; i < rewardTokens.length; i++) {
-            address rewardToken = rewardTokens[i];
-            if (_isExtraRewardToken(rewardToken)) {
-                extraTokenCount++;
-            }
-        }
-        res = new address[](2 + extraTokenCount);
+        res = new address[](2);
         res[0] = eqb;
         res[1] = xEqb;
-        if (extraTokenCount > 0) {
-            uint256 current = 2;
-            for (uint256 i = 0; i < rewardTokens.length; i++) {
-                address rewardToken = rewardTokens[i];
-                if (_isExtraRewardToken(rewardToken)) {
-                    res[current] = rewardToken;
-                    current++;
-                }
-            }
-        }
-    }
-
-    function _isExtraRewardToken(
-        address rewardToken
-    ) internal view returns (bool) {
-        return
-            rewardToken != eqb &&
-            rewardToken != xEqb &&
-            rewardToken != pendle &&
-            rewardToken != ePendle &&
-            rewardToken != weth &&
-            rewardToken != AddressLib.PLATFORM_TOKEN_ADDRESS;
     }
 
     function _redeemExternalReward() internal override {
