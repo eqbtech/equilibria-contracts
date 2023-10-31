@@ -60,7 +60,7 @@ abstract contract PendleProxyBaseUpg is IPendleProxy, AccessControlUpgradeable {
 
     function isValidMarket(
         address _market
-    ) external view override returns (bool) {
+    ) public view override returns (bool) {
         return pendleMarketFactory.isValidMarket(_market);
     }
 
@@ -120,6 +120,10 @@ abstract contract PendleProxyBaseUpg is IPendleProxy, AccessControlUpgradeable {
         rewardTokens = _getRewardTokens(_market);
         require(rewardTokens.length == _amounts.length, "invalid _amounts!");
         for (uint256 i = 0; i < rewardTokens.length; i++) {
+            require(
+                !isValidMarket(rewardTokens[i]),
+                "rewardToken cannot be market"
+            );
             rewardTokens[i].safeTransferToken(booster, _amounts[i]);
         }
         emit RewardsClaimed(_market, rewardTokens, _amounts);
