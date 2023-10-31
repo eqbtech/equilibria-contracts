@@ -2,6 +2,7 @@
 pragma solidity 0.8.17;
 
 import "@pendle/core-v2/contracts/core/StandardizedYield/SYBaseWithRewards.sol";
+import "@shared/lib-contracts-v0.8/contracts/Interfaces/IWNative.sol";
 
 import "./Interfaces/ISmartConvertor.sol";
 import "./Interfaces/IBaseRewardPool.sol";
@@ -59,26 +60,25 @@ contract EPendleSY is SYBaseWithRewards {
         address tokenIn,
         uint256 amountToDeposit
     ) internal virtual override returns (uint256 amountSharesOut) {
-        uint256 harvestedPendleAmount = _harvest();
+        _harvest();
 
-        uint256 ePendleAmount = 0;
+        uint256 pendleTotalBalance = _selfBalance(pendle);
         uint256 ePendleReceived = 0;
         if (tokenIn == pendle) {
-            ePendleAmount = smartConvertor.deposit(
-                amountToDeposit + harvestedPendleAmount
+            uint256 ePendleConverted = smartConvertor.deposit(
+                pendleTotalBalance
             );
             ePendleReceived =
-                (ePendleAmount * amountToDeposit) /
-                (amountToDeposit + harvestedPendleAmount);
+                (ePendleConverted * amountToDeposit) /
+                pendleTotalBalance;
         } else if (tokenIn == ePendle) {
-            ePendleAmount = amountToDeposit;
             ePendleReceived = amountToDeposit;
-            if (harvestedPendleAmount > 0) {
-                ePendleAmount += smartConvertor.deposit(harvestedPendleAmount);
+            if (pendleTotalBalance > 0) {
+                smartConvertor.deposit(pendleTotalBalance);
             }
         }
 
-        ePendleRewardPool.stake(ePendleAmount);
+        ePendleRewardPool.stake(_selfBalance(ePendle));
 
         // Using total assets before deposit as shares not minted yet
         amountSharesOut = _calcSharesOut(
@@ -175,13 +175,16 @@ contract EPendleSY is SYBaseWithRewards {
         }
     }
 
-    function _harvest() internal returns (uint256) {
-        uint256 pendleBalBefore = _selfBalance(pendle);
+    function _harvest() internal {
         // get reward
         ePendleRewardPool.getReward(address(this));
-        uint256 pendleRewardAmount = _selfBalance(pendle) - pendleBalBefore;
+        // convert eth to weth if exists
+        uint256 ethBalance = address(this).balance;
+        if (ethBalance > 0) {
+            IWNative(weth).deposit{value: ethBalance}();
+        }
         // swap weth to pendle if exists
-        return _swapWETH2Pendle(_selfBalance(weth)) + pendleRewardAmount;
+        _swapWETH2Pendle(_selfBalance(weth));
     }
 
     /*///////////////////////////////////////////////////////////////
