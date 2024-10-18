@@ -126,6 +126,31 @@ contract PendleProxyMainchain is PendleProxyBaseUpg, IPendleProxyMainchain {
         emit FeesClaimed(pools, totalAmountOut, amountsOut);
     }
 
+    function claimYTFeesToRecipient() external onlyRole(FEE_ADMIN_ROLE) {
+        address[] memory pools = new address[](1);
+        pools[0] = vePendle;
+        (
+            uint256 totalAmountOut,
+            uint256[] memory amountsOut
+        ) = IPFeeDistributorV2(feeDistributorV2).claimProtocol(
+                address(this),
+                pools
+            );
+
+        if (totalAmountOut == 0) {
+            return;
+        }
+
+        TransferHelper.safeTransferETH(feeCollector, totalAmountOut);
+
+        emit YTFeesClaimedToRecipient(
+            feeCollector,
+            pools,
+            totalAmountOut,
+            amountsOut
+        );
+    }
+
     function claimSwapFees(
         address[] calldata _pools
     ) external onlyRole(FEE_ADMIN_ROLE) {

@@ -9,9 +9,9 @@ import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.
 import "@shared/lib-contracts-v0.8/contracts/Dependencies/TransferHelper.sol";
 import "../Interfaces/IBaseRewardPool.sol";
 import "../Interfaces/ISmartConvertor.sol";
-import "../Interfaces/Balancer/IBalancerVault.sol";
+import "../Interfaces/Camelot/ICamelotRouter.sol";
 
-contract VaultEPendle is
+contract VaultEPendleArbi is
     ERC20Upgradeable,
     AccessControlUpgradeable,
     ReentrancyGuardUpgradeable
@@ -24,7 +24,7 @@ contract VaultEPendle is
     IERC20 public weth;
     IERC20 public eqb;
     IERC20 public xEqb;
-    IBalancerVault public balancer;
+    ICamelotRouter public camelotRouter;
     IBaseRewardPool public ePendleRewardPool;
     ISmartConvertor public smartConvertor;
 
@@ -34,7 +34,6 @@ contract VaultEPendle is
     uint256 public constant FEE_PRECISION = 1e6;
     uint256 public harvestFeeRate;
     uint256 public withdrawalFeeRate;
-    bytes32 private banlancerWethPendlePoolId;
 
     event Deposited(address indexed _user, uint256 _amount);
     event Withdrawn(
@@ -95,18 +94,17 @@ contract VaultEPendle is
         address _ePendleRewardPool,
         address _feeRecipient,
         address _wethAddr,
-        address _balancerAddr,
+        address _camelotRouter,
         address _smartConvertor,
         address _eqb,
-        address _xEqb,
-        bytes32 _banlancerWethPendlePoolId
+        address _xEqb
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         require(_pendle != address(0), "invalid _pendle!");
         require(_ependle != address(0), "invalid _ependle!");
         require(_wethAddr != address(0), "invalid _wethAddr!");
         require(_eqb != address(0), "invalid _eqb!");
         require(_xEqb != address(0), "invalid _xEqb!");
-        require(_balancerAddr != address(0), "invalid _balancerAddr!");
+        require(_camelotRouter != address(0), "invalid _camelotRouter!");
         require(_smartConvertor != address(0), "invalid _smartConvertor!");
         require(
             _ePendleRewardPool != address(0),
@@ -119,10 +117,9 @@ contract VaultEPendle is
         weth = IERC20(_wethAddr);
         eqb = IERC20(_eqb);
         xEqb = IERC20(_xEqb);
-        balancer = IBalancerVault(_balancerAddr);
+        camelotRouter = ICamelotRouter(_camelotRouter);
         ePendleRewardPool = IBaseRewardPool(_ePendleRewardPool);
         feeRecipient = _feeRecipient;
-        banlancerWethPendlePoolId = _banlancerWethPendlePoolId;
 
         smartConvertor = ISmartConvertor(_smartConvertor);
         userHarvest = true;
@@ -360,27 +357,22 @@ contract VaultEPendle is
         emit RewardTokenAdded(_rewardToken);
     }
 
-    function _swapWETH2Pendle(
-        uint256 _amount
-    ) internal returns (uint256 obtainedAmount) {
+    function _swapWETH2Pendle(uint256 _amount) internal {
         if (_amount == 0) {
-            return _amount;
+            return;
         }
-        IBalancerVault.SingleSwap memory singleSwap;
-        singleSwap.poolId = banlancerWethPendlePoolId;
-        singleSwap.kind = IBalancerVault.SwapKind.GIVEN_IN;
-        singleSwap.assetIn = IAsset(address(weth));
-        singleSwap.assetOut = IAsset(address(pendle));
-        singleSwap.amount = _amount;
-
-        IBalancerVault.FundManagement memory funds;
-        funds.sender = address(this);
-        funds.fromInternalBalance = false;
-        funds.recipient = payable(address(this));
-        funds.toInternalBalance = false;
-
-        weth.safeApprove(address(balancer), _amount);
-        return balancer.swap(singleSwap, funds, 0, block.timestamp);
+        weth.safeIncreaseAllowance(address(camelotRouter), _amount);
+        address[] memory path = new address[](2);
+        path[0] = address(weth);
+        path[1] = address(pendle);
+        camelotRouter.swapExactTokensForTokensSupportingFeeOnTransferTokens(
+            _amount,
+            0,
+            path,
+            address(this),
+            address(0),
+            block.timestamp
+        );
     }
 
     function inCaseTokensGetStuck(
@@ -421,8 +413,8 @@ contract VaultEPendle is
     function _beforeTokenTransfer(
         address from,
         address to,
-        uint256 amount
-    ) internal override {
+        uint256
+    ) internal pure override {
         if (from != address(0) && to != address(0)) {
             revert("VaultEPendle: transfer not allowed");
         }

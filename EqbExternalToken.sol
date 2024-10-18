@@ -44,4 +44,11 @@ contract EqbExternalToken is
     function mint(address _to, uint256 _amount) external override onlyOperator {
         _mint(_to, _amount);
     }
+
+    function burn(
+        address _from,
+        uint256 _amount
+    ) external override onlyOperator {
+        _burn(_from, _amount);
+    }
 }

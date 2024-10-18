@@ -2,9 +2,11 @@
 
 pragma solidity 0.8.17;
 
+import "@openzeppelin/contracts-upgradeable/access/IAccessControlUpgradeable.sol";
+
 import "./IRewards.sol";
 
-interface IBaseRewardPool is IRewards {
+interface IBaseRewardPool is IRewards, IAccessControlUpgradeable {
     function setParams(
         uint256 _pid,
         address _stakingToken,

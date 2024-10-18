@@ -18,6 +18,8 @@ abstract contract PendleProxyBaseUpg is IPendleProxy, AccessControlUpgradeable {
 
     address public booster;
 
+    address public pendleMarketFactoryV3;
+
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
@@ -58,10 +60,23 @@ abstract contract PendleProxyBaseUpg is IPendleProxy, AccessControlUpgradeable {
         emit BoosterUpdated(_booster);
     }
 
+    function setPendleMarketFactoryV3(
+        address _pendleMarketFactoryV3
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        pendleMarketFactoryV3 = _pendleMarketFactoryV3;
+    }
+
     function isValidMarket(
         address _market
     ) public view override returns (bool) {
-        return pendleMarketFactory.isValidMarket(_market);
+        if (pendleMarketFactory.isValidMarket(_market)) {
+            return true;
+        }
+        if (pendleMarketFactoryV3 != address(0)) {
+            return
+                IPMarketFactory(pendleMarketFactoryV3).isValidMarket(_market);
+        }
+        return false;
     }
 
     function withdraw(
@@ -155,5 +170,5 @@ abstract contract PendleProxyBaseUpg is IPendleProxy, AccessControlUpgradeable {
 
     receive() external payable {}
 
-    uint256[100] private __gap;
+    uint256[99] private __gap;
 }

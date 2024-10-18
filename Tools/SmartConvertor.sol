@@ -25,6 +25,8 @@ contract SmartConvertor is ISmartConvertor, AccessControlUpgradeable {
 
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
 
+    uint256 public buyPercent;
+
     function initialize() public initializer {
         __AccessControl_init();
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
@@ -121,7 +123,7 @@ contract SmartConvertor is ISmartConvertor, AccessControlUpgradeable {
         if (
             _estimateOutEPendleAmount(_amount) > (_amount * swapThreshold) / 100
         ) {
-            return Math.min(_amount, maxSwapAmount);
+            return Math.min((_amount * buyPercent) / 100, maxSwapAmount);
         }
         // or not swap from dex
         return 0;
@@ -205,6 +207,14 @@ contract SmartConvertor is ISmartConvertor, AccessControlUpgradeable {
     ) external onlyRole(ADMIN_ROLE) {
         maxSwapAmount = _maxSwapAmount;
         emit MaxSwapAmountChanged(_maxSwapAmount);
+    }
+
+    function changeBuyPercent(
+        uint256 _buyPercent
+    ) external onlyRole(ADMIN_ROLE) {
+        require(_buyPercent <= 100, "_buyPercent should be less than 100");
+        buyPercent = _buyPercent;
+        emit BuyPercentChanged(_buyPercent);
     }
 
     function changeMaverickPendleEpendlePool(

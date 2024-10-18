@@ -14,6 +14,13 @@ interface IPendleBooster {
 
     function rewardClaimed(uint256, address, address, uint256) external;
 
+    event PoolAdded(
+        uint256 indexed _pid,
+        address indexed _market,
+        address _token,
+        address _rewardPool
+    );
+
     event Deposited(
         address indexed _user,
         uint256 indexed _poolid,

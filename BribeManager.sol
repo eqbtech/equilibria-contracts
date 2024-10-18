@@ -25,6 +25,7 @@ contract BribeManager is AccessControlUpgradeable {
         public hasClaimed;
 
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
+    bytes32 public constant THIRD_PARTY_ROLE = keccak256("THIRD_PARTY_ROLE");
 
     event BribeCreated(
         uint256 _weekNo,
@@ -41,6 +42,13 @@ contract BribeManager is AccessControlUpgradeable {
         address indexed _user,
         uint256 _weekNo,
         address indexed _pool,
+        uint256[] _rewardAmounts
+    );
+    event RewardAmountsAdded(
+        address indexed _caller,
+        uint256 _weekNo,
+        address indexed _pool,
+        uint256[] _rewardTokenIndexs,
         uint256[] _rewardAmounts
     );
 
@@ -78,7 +86,7 @@ contract BribeManager is AccessControlUpgradeable {
         address _pool,
         address[] calldata _rewardTokens,
         uint256[] calldata _rewardAmounts
-    ) external onlyRole(ADMIN_ROLE) {
+    ) public onlyRole(ADMIN_ROLE) {
         require(_pool != address(0), "invalid _pool");
         for (uint256 i = 0; i < bribes[_weekNo].length; i++) {
             require(
@@ -86,48 +94,123 @@ contract BribeManager is AccessControlUpgradeable {
                 "bribe for this pool already exists"
             );
         }
-        require(
-            _rewardTokens.length == _rewardAmounts.length &&
-                _rewardTokens.length > 0,
-            "invalid _rewardTokens or _rewardAmounts"
-        );
-        for (uint256 i = 0; i < _rewardAmounts.length; i++) {
-            require(_rewardAmounts[i] > 0, "invalid _rewardAmounts");
+        require(_rewardTokens.length > 0, "invalid _rewardTokens");
+
+        if (_rewardAmounts.length == 0) {
+            bribes[_weekNo].push(
+                BribeInfo({
+                    pool: _pool,
+                    rewardTokens: _rewardTokens,
+                    rewardAmounts: new uint256[](_rewardTokens.length),
+                    merkleRoot: bytes32(0)
+                })
+            );
+        } else {
+            require(
+                _rewardTokens.length == _rewardAmounts.length,
+                "invalid _rewardTokens or _rewardAmounts"
+            );
+            for (uint256 i = 0; i < _rewardAmounts.length; i++) {
+                require(_rewardAmounts[i] > 0, "invalid _rewardAmounts");
+            }
+
+            bribes[_weekNo].push(
+                BribeInfo({
+                    pool: _pool,
+                    rewardTokens: _rewardTokens,
+                    rewardAmounts: _rewardAmounts,
+                    merkleRoot: bytes32(0)
+                })
+            );
         }
 
-        bribes[_weekNo].push(
-            BribeInfo({
-                pool: _pool,
-                rewardTokens: _rewardTokens,
-                rewardAmounts: _rewardAmounts,
-                merkleRoot: bytes32(0)
-            })
+        emit BribeCreated(_weekNo, _pool, _rewardTokens, _rewardAmounts);
+    }
+
+    function addRewardAmounts(
+        uint256 _weekNo,
+        uint256 _index,
+        uint256[] calldata _rewardTokenIndexs,
+        uint256[] calldata _rewardAmounts
+    ) external payable onlyRole(THIRD_PARTY_ROLE) {
+        BribeInfo storage bribe = bribes[_weekNo][_index];
+        require(bribe.pool != address(0), "invalid bribe");
+        require(bribe.merkleRoot == bytes32(0), "bribe already ended");
+        require(
+            _rewardTokenIndexs.length == _rewardAmounts.length &&
+                _rewardTokenIndexs.length > 0,
+            "invalid _rewardTokenIndexs or _rewardAmounts"
         );
 
-        emit BribeCreated(_weekNo, _pool, _rewardTokens, _rewardAmounts);
+        uint256 ethAmount = 0;
+        for (uint256 i = 0; i < _rewardTokenIndexs.length; i++) {
+            uint256 index = _rewardTokenIndexs[i];
+            require(
+                index < bribe.rewardTokens.length,
+                "invalid _rewardTokenIndexs"
+            );
+            address token = bribe.rewardTokens[index];
+            if (AddressLib.isPlatformToken(token)) {
+                ethAmount += _rewardAmounts[i];
+            } else {
+                IERC20(token).safeTransferFrom(
+                    msg.sender,
+                    address(this),
+                    _rewardAmounts[i]
+                );
+            }
+
+            bribe.rewardAmounts[index] += _rewardAmounts[i];
+        }
+
+        if (ethAmount > 0) {
+            require(ethAmount == msg.value, "invalid msg.value");
+        }
+
+        emit RewardAmountsAdded(
+            msg.sender,
+            _weekNo,
+            bribe.pool,
+            _rewardTokenIndexs,
+            _rewardAmounts
+        );
+    }
+
+    function batchCreateBribe(
+        uint256 _weekNo,
+        address[] calldata _pool,
+        address[][] calldata _rewardTokens,
+        uint256[][] calldata _rewardAmounts
+    ) external onlyRole(ADMIN_ROLE) {
+        for (uint256 i = 0; i < _pool.length; i++) {
+            createBribe(_weekNo, _pool[i], _rewardTokens[i], _rewardAmounts[i]);
+        }
     }
 
     function endBribe(
         uint256 _weekNo,
         uint256 _index,
-        bytes32 _merkleRoot
-    ) external payable onlyRole(ADMIN_ROLE) {
+        bytes32 _merkleRoot,
+        bool _skipTransfer
+    ) public payable onlyRole(ADMIN_ROLE) {
         require(_merkleRoot != bytes32(0), "invalid _merkleRoot");
         BribeInfo storage bribe = bribes[_weekNo][_index];
         require(bribe.pool != address(0), "invalid bribe");
         require(bribe.merkleRoot == bytes32(0), "bribe already ended");
 
-        for (uint256 i = 0; i < bribe.rewardTokens.length; i++) {
-            address token = bribe.rewardTokens[i];
-            uint256 amount = bribe.rewardAmounts[i];
-            if (AddressLib.isPlatformToken(token)) {
-                require(amount == msg.value, "invalid msg.value");
-            } else {
-                IERC20(token).safeTransferFrom(
-                    msg.sender,
-                    address(this),
-                    amount
-                );
+        if (!_skipTransfer) {
+            for (uint256 i = 0; i < bribe.rewardTokens.length; i++) {
+                address token = bribe.rewardTokens[i];
+                uint256 amount = bribe.rewardAmounts[i];
+                if (AddressLib.isPlatformToken(token)) {
+                    require(amount == msg.value, "invalid msg.value");
+                } else {
+                    IERC20(token).safeTransferFrom(
+                        msg.sender,
+                        address(this),
+                        amount
+                    );
+                }
             }
         }
 
@@ -136,12 +219,23 @@ contract BribeManager is AccessControlUpgradeable {
         emit BribeEnded(_weekNo, bribe.pool, _merkleRoot);
     }
 
+    function batchEndBribe(
+        uint256 _weekNo,
+        uint256[] calldata _index,
+        bytes32[] calldata _merkleRoot,
+        bool _skipTransfer
+    ) external payable onlyRole(ADMIN_ROLE) {
+        for (uint256 i = 0; i < _index.length; i++) {
+            endBribe(_weekNo, _index[i], _merkleRoot[i], _skipTransfer);
+        }
+    }
+
     function claim(
         uint256 _weekNo,
         uint256 _index,
         uint256[] calldata _amounts,
         bytes32[] calldata _proof
-    ) external {
+    ) public {
         BribeInfo memory bribe = bribes[_weekNo][_index];
         require(bribe.pool != address(0), "invalid bribe");
         require(bribe.merkleRoot != bytes32(0), "bribe not ended");
@@ -162,6 +256,19 @@ contract BribeManager is AccessControlUpgradeable {
         hasClaimed[_weekNo][_index][msg.sender] = true;
 
         emit Claimed(msg.sender, _weekNo, bribe.pool, _amounts);
+    }
+
+    function batchClaim(
+        uint256[] calldata _weekNo,
+        uint256[][] calldata _index,
+        uint256[][][] calldata _amounts,
+        bytes32[][][] calldata _proof
+    ) external {
+        for (uint256 i = 0; i < _weekNo.length; i++) {
+            for (uint256 j = 0; j < _index[i].length; j++) {
+                claim(_weekNo[i], _index[i][j], _amounts[i][j], _proof[i][j]);
+            }
+        }
     }
 
     function _verifyMerkleData(

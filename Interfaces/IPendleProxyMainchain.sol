@@ -19,4 +19,11 @@ interface IPendleProxyMainchain is IPendleProxy {
         uint256 _totalAmountOut,
         uint256[] _amountsOut
     );
+
+    event YTFeesClaimedToRecipient(
+        address _recipient,
+        address[] _pools,
+        uint256 _totalAmountOut,
+        uint256[] _amountsOut
+    );
 }

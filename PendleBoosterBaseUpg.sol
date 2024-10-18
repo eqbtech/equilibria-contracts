@@ -2,16 +2,20 @@
 pragma solidity 0.8.17;
 
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+
+import "./Dependencies/EqbConstants.sol";
 
 import "./Interfaces/IXEqbToken.sol";
 import "@shared/lib-contracts-v0.8/contracts/Dependencies/TransferHelper.sol";
 import "./Interfaces/IPendleBooster.sol";
 import "./Interfaces/IPendleProxy.sol";
-import "./Interfaces/IDepositToken.sol";
+import "./Interfaces/IDepositTokenV2.sol";
 import "./Interfaces/IPendleDepositor.sol";
 import "./Interfaces/IEqbMinter.sol";
-import "./Interfaces/IBaseRewardPool.sol";
+import "./Interfaces/IBaseRewardPoolV2.sol";
+import "./Interfaces/IEqbConfig.sol";
 
 abstract contract PendleBoosterBaseUpg is IPendleBooster, OwnableUpgradeable {
     using SafeERC20 for IERC20;
@@ -52,6 +56,8 @@ abstract contract PendleBoosterBaseUpg is IPendleBooster, OwnableUpgradeable {
     PoolInfo[] public override poolInfo;
 
     bool public earmarkOnOperation;
+
+    IEqbConfig public eqbConfig;
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -191,10 +197,66 @@ abstract contract PendleBoosterBaseUpg is IPendleBooster, OwnableUpgradeable {
         earmarkOnOperation = _earmarkOnOperation;
     }
 
+    function setEqbConfig(address _eqbConfig) external onlyOwner {
+        require(_eqbConfig != address(0), "invalid _eqbConfig");
+        eqbConfig = IEqbConfig(_eqbConfig);
+    }
+
     /// END SETTER SECTION ///
 
     function poolLength() external view override returns (uint256) {
         return poolInfo.length;
+    }
+
+    function addPoolBeacon(address _market) external onlyOwner {
+        require(!isShutdown, "!add");
+
+        require(
+            IPendleProxy(pendleProxy).isValidMarket(_market),
+            "invalid _market"
+        );
+
+        // the next pool's pid
+        uint256 pid = poolInfo.length;
+
+        BeaconProxy token = new BeaconProxy(
+            eqbConfig.getContract(EqbConstants.DEPOSIT_TOKEN_V2_BEACON),
+            abi.encodeWithSelector(
+                IDepositTokenV2.initialize.selector,
+                msg.sender,
+                address(this),
+                _market
+            )
+        );
+
+        BeaconProxy rewardPool = new BeaconProxy(
+            eqbConfig.getContract(EqbConstants.BASE_REWARD_POOL_V2_BEACON),
+            abi.encodeWithSelector(
+                IBaseRewardPoolV2.initialize.selector,
+                msg.sender,
+                address(this)
+            )
+        );
+
+        // config pendle rewards
+        IBaseRewardPoolV2(address(rewardPool)).setParams(
+            pid,
+            address(token),
+            pendle,
+            eqbConfig.getContract(EqbConstants.EQB_ZAP)
+        );
+
+        // add the new pool
+        poolInfo.push(
+            PoolInfo({
+                market: _market,
+                token: address(token),
+                rewardPool: address(rewardPool),
+                shutdown: false
+            })
+        );
+
+        emit PoolAdded(pid, _market, address(token), address(rewardPool));
     }
 
     // create a new pool
@@ -225,6 +287,8 @@ abstract contract PendleBoosterBaseUpg is IPendleBooster, OwnableUpgradeable {
                 shutdown: false
             })
         );
+
+        emit PoolAdded(pid, _market, _token, _rewardPool);
     }
 
     // shutdown pool
@@ -431,10 +495,7 @@ abstract contract PendleBoosterBaseUpg is IPendleBooster, OwnableUpgradeable {
         uint256 _amount
     ) external override {
         PoolInfo memory pool = poolInfo[_pid];
-        require(
-            msg.sender == pool.rewardPool || msg.sender == ePendleRewardPool,
-            "!auth"
-        );
+        require(_isAllowedRewardContract(msg.sender, pool), "!auth");
 
         if (_token != pendle || isShutdown) {
             return;
@@ -450,6 +511,15 @@ abstract contract PendleBoosterBaseUpg is IPendleBooster, OwnableUpgradeable {
         if (contributorAmount > 0) {
             _mintEqbRewards(contributor, contributorAmount, teamEqbShare);
         }
+    }
+
+    function _isAllowedRewardContract(
+        address _rewardContract,
+        PoolInfo memory _pool
+    ) internal virtual returns (bool) {
+        return
+            _rewardContract == _pool.rewardPool ||
+            _rewardContract == ePendleRewardPool;
     }
 
     function _mintEqbRewards(
