@@ -187,12 +187,12 @@ contract BribeManager is AccessControlUpgradeable {
         }
     }
 
-    function endBribe(
+    function _endBribe(
         uint256 _weekNo,
         uint256 _index,
         bytes32 _merkleRoot,
         bool _skipTransfer
-    ) public payable onlyRole(ADMIN_ROLE) {
+    ) internal returns (uint256 totalNativeAmount) {
         require(_merkleRoot != bytes32(0), "invalid _merkleRoot");
         BribeInfo storage bribe = bribes[_weekNo][_index];
         require(bribe.pool != address(0), "invalid bribe");
@@ -203,7 +203,7 @@ contract BribeManager is AccessControlUpgradeable {
                 address token = bribe.rewardTokens[i];
                 uint256 amount = bribe.rewardAmounts[i];
                 if (AddressLib.isPlatformToken(token)) {
-                    require(amount == msg.value, "invalid msg.value");
+                    totalNativeAmount += amount;
                 } else {
                     IERC20(token).safeTransferFrom(
                         msg.sender,
@@ -219,15 +219,37 @@ contract BribeManager is AccessControlUpgradeable {
         emit BribeEnded(_weekNo, bribe.pool, _merkleRoot);
     }
 
+    function endBribe(
+        uint256 _weekNo,
+        uint256 _index,
+        bytes32 _merkleRoot,
+        bool _skipTransfer
+    ) public payable onlyRole(ADMIN_ROLE) {
+        uint256 totalNativeAmount = _endBribe(
+            _weekNo,
+            _index,
+            _merkleRoot,
+            _skipTransfer
+        );
+        require(totalNativeAmount == msg.value, "invalid msg.value");
+    }
+
     function batchEndBribe(
         uint256 _weekNo,
         uint256[] calldata _index,
         bytes32[] calldata _merkleRoot,
         bool _skipTransfer
     ) external payable onlyRole(ADMIN_ROLE) {
+        uint256 totalNativeAmount;
         for (uint256 i = 0; i < _index.length; i++) {
-            endBribe(_weekNo, _index[i], _merkleRoot[i], _skipTransfer);
+            totalNativeAmount += _endBribe(
+                _weekNo,
+                _index[i],
+                _merkleRoot[i],
+                _skipTransfer
+            );
         }
+        require(totalNativeAmount == msg.value, "invalid msg.value");
     }
 
     function claim(
@@ -247,13 +269,13 @@ contract BribeManager is AccessControlUpgradeable {
             revert Errors.InvalidMerkleProof();
         }
 
+        hasClaimed[_weekNo][_index][msg.sender] = true;
+
         for (uint256 i = 0; i < bribe.rewardTokens.length; i++) {
             address token = bribe.rewardTokens[i];
             uint256 amount = _amounts[i];
             token.safeTransferToken(msg.sender, amount);
         }
-
-        hasClaimed[_weekNo][_index][msg.sender] = true;
 
         emit Claimed(msg.sender, _weekNo, bribe.pool, _amounts);
     }
