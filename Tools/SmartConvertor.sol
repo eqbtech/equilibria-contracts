@@ -157,7 +157,10 @@ contract SmartConvertor is ISmartConvertor, AccessControlUpgradeable {
         if (_tokenIn == pendle) {
             uint256 amountDexIn = 0;
             if ((pendleToEPendlePrice * 100) / 1e18 > swapThreshold) {
-                amountDexIn = Math.min(_amount, maxSwapAmount);
+                amountDexIn = Math.min(
+                    (_amount * buyPercent) / 100,
+                    maxSwapAmount
+                );
             }
             return
                 (amountDexIn * pendleToEPendlePrice) /

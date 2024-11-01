@@ -96,7 +96,7 @@ contract EPendleVaultSidechain is
 
         ePendle.mint(msg.sender, _amount);
 
-        emit Converted(_token, msg.sender, _amount);
+        emit Converted(msg.sender, _token, _amount);
     }
 
     function swap(uint256 _amount, address _to) public {

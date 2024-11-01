@@ -35,7 +35,11 @@ contract ChainlinkOracle is IOracle, AccessControlUpgradeable {
     }
 
     function getPrice() external view returns (uint256) {
-        (, int256 price, , , ) = priceFeed.latestRoundData();
+        (, int256 price, , uint256 updatedAt, ) = priceFeed.latestRoundData();
+        if (updatedAt < block.timestamp - 60 * 60 /* 1 hour */) {
+            revert("stale price feed");
+        }
+        require(price > 0, "invalid price");
         return (uint256(price) * 1e18) / 10 ** uint256(priceFeed.decimals());
     }
 }
