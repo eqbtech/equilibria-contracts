@@ -21,6 +21,16 @@ abstract contract PendleBoosterBaseUpg is IPendleBooster, OwnableUpgradeable {
     using SafeERC20 for IERC20;
     using TransferHelper for address;
 
+    // Fixed storage slot for reentrancy guard
+    bytes32 private constant REENTRANCY_SLOT = keccak256("equilibria.pendle.booster.reentrancy");
+
+    // Constants for reentrancy guard values
+    uint256 private constant _NOT_ENTERED = 1;
+    uint256 private constant _ENTERED = 2;
+
+    // Custom error for reentrancy
+    error ReentrantCall();
+
     address public pendle;
 
     address public pendleProxy;
@@ -64,12 +74,46 @@ abstract contract PendleBoosterBaseUpg is IPendleBooster, OwnableUpgradeable {
         _disableInitializers();
     }
 
+    /**
+     * @dev Prevents a contract from calling itself, directly or indirectly.
+     */
+    modifier nonReentrant() {
+        // On the first call to nonReentrant, _status will be _NOT_ENTERED
+        if (_getReentrancyStatus() == _ENTERED) {
+            revert ReentrantCall();
+        }
+
+        // Any calls to nonReentrant after this point will fail
+        _setReentrancyStatus(_ENTERED);
+
+        _;
+
+        // By storing the original value once again, a refund is triggered
+        _setReentrancyStatus(_NOT_ENTERED);
+    }
+
+    function _getReentrancyStatus() private view returns (uint256 status) {
+        bytes32 slot = REENTRANCY_SLOT;
+        assembly {
+            status := sload(slot)
+        }
+    }
+
+    function _setReentrancyStatus(uint256 status) private {
+        bytes32 slot = REENTRANCY_SLOT;
+        assembly {
+            sstore(slot, status)
+        }
+    }
+
     function __PendleBoosterBaseUpg_init() internal onlyInitializing {
         __PendleBoosterBaseUpg_init_unchained();
     }
 
     function __PendleBoosterBaseUpg_init_unchained() internal onlyInitializing {
         __Ownable_init_unchained();
+        // Initialize reentrancy guard
+        _setReentrancyStatus(_NOT_ENTERED);
     }
 
     /// SETTER SECTION ///
@@ -319,7 +363,7 @@ abstract contract PendleBoosterBaseUpg is IPendleBooster, OwnableUpgradeable {
         uint256 _pid,
         uint256 _amount,
         bool _stake
-    ) public override {
+    ) public override nonReentrant {
         require(!isShutdown, "shutdown");
         PoolInfo memory pool = poolInfo[_pid];
         require(pool.shutdown == false, "pool is closed");
@@ -377,7 +421,7 @@ abstract contract PendleBoosterBaseUpg is IPendleBooster, OwnableUpgradeable {
         emit Withdrawn(_to, _pid, _amount);
     }
 
-    function withdraw(uint256 _pid, uint256 _amount) public override {
+    function withdraw(uint256 _pid, uint256 _amount) public override nonReentrant {
         _withdraw(_pid, _amount, msg.sender, msg.sender);
     }
 
@@ -472,7 +516,7 @@ abstract contract PendleBoosterBaseUpg is IPendleBooster, OwnableUpgradeable {
         }
     }
 
-    function earmarkRewards(uint256 _pid) external {
+    function earmarkRewards(uint256 _pid) external nonReentrant {
         require(!isShutdown, "shutdown");
         PoolInfo memory pool = poolInfo[_pid];
         require(pool.shutdown == false, "pool is closed");
@@ -483,7 +527,7 @@ abstract contract PendleBoosterBaseUpg is IPendleBooster, OwnableUpgradeable {
     function earmarkRewardsManually(
         uint256 _pid,
         uint256[] memory _amounts
-    ) external onlyOwner {
+    ) external onlyOwner nonReentrant {
         _earmarkRewards(_pid, address(0), _amounts);
     }
 
