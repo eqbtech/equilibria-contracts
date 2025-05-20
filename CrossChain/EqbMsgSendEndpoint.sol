@@ -8,6 +8,7 @@ import "../Interfaces/IEqbMsgSendEndpoint.sol";
 import "../Interfaces/LayerZero/ILayerZeroEndpoint.sol";
 import "../Dependencies/Errors.sol";
 import "./LayerZeroHelper.sol";
+import "../Interfaces/IEqbConfig.sol";
 
 /**
  * @dev Initially, currently we will use layer zero's default send and receive version (which is most updated)
@@ -22,6 +23,8 @@ contract EqbMsgSendEndpoint is IEqbMsgSendEndpoint, OwnableUpgradeable {
 
     EnumerableMap.UintToAddressMap internal receiveEndpoints;
     mapping(address => bool) public isWhitelisted;
+
+    IEqbConfig public eqbConfig;
 
     modifier onlyWhitelisted() {
         if (!isWhitelisted[msg.sender]) {
@@ -48,6 +51,11 @@ contract EqbMsgSendEndpoint is IEqbMsgSendEndpoint, OwnableUpgradeable {
         setLzSendVersion(2);
     }
 
+    function setEqbConfig(address _eqbConfig) external onlyOwner {
+        require(_eqbConfig != address(0), "invalid _eqbConfig");
+        eqbConfig = IEqbConfig(_eqbConfig);
+    }
+
     function calcFee(
         uint256 _dstChainId,
         address _dstAddress,
@@ -55,7 +63,9 @@ contract EqbMsgSendEndpoint is IEqbMsgSendEndpoint, OwnableUpgradeable {
         uint256 _estimatedGasAmount
     ) external view returns (uint256 fee) {
         (fee, ) = lzEndpoint.estimateFees(
-            LayerZeroHelper.getLayerZeroChainId(_dstChainId),
+            address(eqbConfig) != address(0)
+                ? eqbConfig.getLayerZeroChainId(_dstChainId)
+                : LayerZeroHelper.getLayerZeroChainId(_dstChainId),
             receiveEndpoints.get(_dstChainId),
             abi.encode(_dstAddress, msg.sender, _payload),
             false,
@@ -74,7 +84,9 @@ contract EqbMsgSendEndpoint is IEqbMsgSendEndpoint, OwnableUpgradeable {
             address(this)
         );
         lzEndpoint.send{value: msg.value}(
-            LayerZeroHelper.getLayerZeroChainId(_dstChainId),
+            address(eqbConfig) != address(0)
+                ? eqbConfig.getLayerZeroChainId(_dstChainId)
+                : LayerZeroHelper.getLayerZeroChainId(_dstChainId),
             path,
             abi.encode(_dstAddress, msg.sender, _payload),
             refundAddress,

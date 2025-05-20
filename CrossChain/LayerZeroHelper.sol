@@ -28,6 +28,9 @@ library LayerZeroHelper {
         } else if (chainId == 10) {
             // optimism
             return 111;
+        } else if (chainId == 8453) {
+            // base
+            return 184;
         }
         assert(false);
     }
@@ -56,6 +59,9 @@ library LayerZeroHelper {
         } else if (chainId == 111) {
             // optimism
             return 10;
+        } else if (chainId == 184) {
+            // base
+            return 8453;
         }
         assert(false);
     }

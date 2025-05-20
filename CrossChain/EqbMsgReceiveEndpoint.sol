@@ -10,6 +10,7 @@ import "../Interfaces/LayerZero/ILayerZeroReceiver.sol";
 import "../Dependencies/Errors.sol";
 import "./LayerZeroHelper.sol";
 import "./ExcessivelySafeCall.sol";
+import "../Interfaces/IEqbConfig.sol";
 
 /**
  * @dev Initially, currently we will use layer zero's default send and receive version (which is most updated)
@@ -21,6 +22,7 @@ contract EqbMsgReceiveEndpoint is ILayerZeroReceiver, OwnableUpgradeable {
 
     address public lzEndpoint;
     EnumerableMap.UintToAddressMap internal sendEndpoints;
+    IEqbConfig public eqbConfig;
 
     event Received(
         uint16 _srcChainId,
@@ -41,9 +43,9 @@ contract EqbMsgReceiveEndpoint is ILayerZeroReceiver, OwnableUpgradeable {
         if (msg.sender != address(lzEndpoint)) {
             revert Errors.OnlyLayerZeroEndpoint();
         }
-        uint256 originalChainId = LayerZeroHelper.getOriginalChainId(
-            _srcChainId
-        );
+        uint256 originalChainId = address(eqbConfig) != address(0)
+            ? eqbConfig.getOriginalChainId(_srcChainId)
+            : LayerZeroHelper.getOriginalChainId(_srcChainId);
         if (
             !sendEndpoints.contains(originalChainId) ||
             sendEndpoints.get(originalChainId) !=
@@ -67,6 +69,11 @@ contract EqbMsgReceiveEndpoint is ILayerZeroReceiver, OwnableUpgradeable {
         setLzReceiveVersion(2);
     }
 
+    function setEqbConfig(address _eqbConfig) external onlyOwner {
+        require(_eqbConfig != address(0), "invalid _eqbConfig");
+        eqbConfig = IEqbConfig(_eqbConfig);
+    }
+
     function lzReceive(
         uint16 _srcChainId,
         bytes calldata _path,
@@ -74,7 +81,9 @@ contract EqbMsgReceiveEndpoint is ILayerZeroReceiver, OwnableUpgradeable {
         bytes calldata _payload
     ) external onlyValid(_srcChainId, _path) {
         (bool success, bytes memory reason) = _callReceiver(
-            LayerZeroHelper.getOriginalChainId(_srcChainId),
+            address(eqbConfig) != address(0)
+                ? eqbConfig.getOriginalChainId(_srcChainId)
+                : LayerZeroHelper.getOriginalChainId(_srcChainId),
             _payload
         );
         if (!success) {
