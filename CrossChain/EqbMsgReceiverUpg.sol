@@ -36,6 +36,12 @@ abstract contract EqbMsgReceiverUpg is IEqbMsgReceiver, OwnableUpgradeable {
         eqbMsgReceiveEndpoint = _eqbMsgReceiveEndpoint;
     }
 
+    function setEqbMsgReceiveEndpoint(
+        address _eqbMsgReceiveEndpoint
+    ) external onlyOwner {
+        eqbMsgReceiveEndpoint = _eqbMsgReceiveEndpoint;
+    }
+
     function executeMessage(
         uint256 _srcChainId,
         address _srcAddr,
