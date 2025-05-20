@@ -51,6 +51,11 @@ contract BribeManager is AccessControlUpgradeable {
         uint256[] _rewardTokenIndexs,
         uint256[] _rewardAmounts
     );
+    event AdminClearedBribeAmounts(
+        uint256 _weekNo,
+        uint256 _index,
+        uint256[] _rewardTokenIndexs
+    );
     event AdminWithdrawn(address indexed _token, uint256 _amount);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -292,6 +297,33 @@ contract BribeManager is AccessControlUpgradeable {
                 claim(_weekNo[i], _index[i][j], _amounts[i][j], _proof[i][j]);
             }
         }
+    }
+
+    function adminClearBribeAmounts(
+        uint256 _weekNo,
+        uint256 _index,
+        uint256[] calldata _rewardTokenIndexs
+    ) external onlyRole(ADMIN_ROLE) {
+        BribeInfo storage bribe = bribes[_weekNo][_index];
+        require(bribe.pool != address(0), "invalid bribe");
+        require(bribe.merkleRoot == bytes32(0), "bribe already ended");
+        require(
+            _rewardTokenIndexs.length > 0 &&
+                _rewardTokenIndexs.length <= bribe.rewardTokens.length,
+            "invalid _rewardTokenIndexs"
+        );
+
+        for (uint256 i = 0; i < _rewardTokenIndexs.length; i++) {
+            uint256 index = _rewardTokenIndexs[i];
+            require(
+                index < bribe.rewardTokens.length,
+                "invalid _rewardTokenIndexs"
+            );
+            require(bribe.rewardAmounts[index] > 0, "bribe amount is 0");
+            bribe.rewardAmounts[index] = 0;
+        }
+
+        emit AdminClearedBribeAmounts(_weekNo, _index, _rewardTokenIndexs);
     }
 
     function adminWithdraw(
