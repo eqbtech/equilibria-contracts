@@ -89,7 +89,8 @@ interface IArbVester {
 
     function calculateVestingAmount(
         uint256 _amount,
-        uint256 _weeks
+        uint256 _weeks,
+        uint256 _realLockWeeks
     ) external view returns (uint256);
 
     function calculateLpAmount(

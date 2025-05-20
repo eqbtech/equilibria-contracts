@@ -275,21 +275,25 @@ contract ArbVester is
 
         uint256 _usdtAmount = _calculateVestingAmount(
             vestingPosition.amount,
+            vestingPosition.durationWeeks,
             _durationWeeks
         );
         require(_usdtAmount <= _maxAmount, "Vester: amount exceeds _maxAmount");
         // close the vesting position
         vestingPosition.closed = true;
 
-        uint256 _amount = vestingPosition.amount;
-        IERC20(usdt).safeTransferFrom(
-            vestingPosition.user,
-            address(this),
-            _usdtAmount
-        );
-        IERC20MintBurn(oArb).burn(address(this), _amount);
-        // user buy the ARB
-        IERC20(arb).safeTransfer(vestingPosition.user, _amount);
+        uint256 _amount = vestingPosition.amount * _durationWeeks / vestingPosition.durationWeeks;
+
+        if (_amount > 0) {
+            IERC20(usdt).safeTransferFrom(
+                vestingPosition.user,
+                address(this),
+                _usdtAmount
+            );
+            IERC20MintBurn(oArb).burn(address(this), _amount);
+            // user buy the ARB
+            IERC20(arb).safeTransfer(vestingPosition.user, _amount);
+        }
 
         emit VestingPositionClosed(msg.sender, _amount, _vestId, _usdtAmount);
     }
@@ -572,14 +576,16 @@ contract ArbVester is
 
     function calculateVestingAmount(
         uint256 _amount,
-        uint256 _weeks
+        uint256 _weeks,
+        uint256 _realLockWeeks
     ) external view returns (uint256) {
-        return _calculateVestingAmount(_amount, _weeks);
+        return _calculateVestingAmount(_amount, _weeks, _realLockWeeks);
     }
 
     function _calculateVestingAmount(
         uint256 _amount,
-        uint256 _weeks
+        uint256 _weeks,
+        uint256 _realLockWeeks
     ) internal view returns (uint256) {
         uint256 discount = _weeks * discountPerWeek;
         uint256 _usdtAmount = (_amount *
@@ -587,6 +593,10 @@ contract ArbVester is
             (DISCOUNT_PRECISION - discount)) /
             DISCOUNT_PRECISION /
             PRECISION;
+        if (_weeks == 0) {
+            return 0;
+        }
+        _usdtAmount = _usdtAmount * _realLockWeeks / _weeks;
         return
             _decimalConvert(
                 _usdtAmount,
