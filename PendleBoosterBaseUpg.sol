@@ -530,11 +530,15 @@ abstract contract PendleBoosterBaseUpg is IPendleBooster, OwnableUpgradeable {
         // mint eqb
         uint256 mintAmount = IEqbMinter(eqbMinter).mint(address(this), _amount);
         uint256 eqbAmount = (mintAmount * _share) / DENOMINATOR;
-        IERC20(eqb).safeTransfer(_to, eqbAmount);
+        if (eqbAmount > 0) {
+            IERC20(eqb).safeTransfer(_to, eqbAmount);
+        }
 
         uint256 xEqbAmount = mintAmount - eqbAmount;
-        _approveTokenIfNeeded(eqb, xEqb, xEqbAmount);
-        IXEqbToken(xEqb).convertTo(xEqbAmount, _to);
+        if (xEqbAmount > 0) {
+            _approveTokenIfNeeded(eqb, xEqb, xEqbAmount);
+            IXEqbToken(xEqb).convertTo(xEqbAmount, _to);
+        }
 
         emit EqbRewardsSent(_to, eqbAmount, xEqbAmount);
     }
