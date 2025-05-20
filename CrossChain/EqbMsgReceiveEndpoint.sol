@@ -65,8 +65,6 @@ contract EqbMsgReceiveEndpoint is ILayerZeroReceiver, OwnableUpgradeable {
         __Ownable_init();
 
         lzEndpoint = _lzEndpoint;
-
-        setLzReceiveVersion(2);
     }
 
     function setEqbConfig(address _eqbConfig) external onlyOwner {

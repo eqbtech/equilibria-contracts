@@ -47,8 +47,6 @@ contract EqbMsgSendEndpoint is IEqbMsgSendEndpoint, OwnableUpgradeable {
 
         refundAddress = payable(_refundAddress);
         lzEndpoint = _lzEndpoint;
-
-        setLzSendVersion(2);
     }
 
     function setEqbConfig(address _eqbConfig) external onlyOwner {
