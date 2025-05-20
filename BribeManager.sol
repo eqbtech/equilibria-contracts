@@ -51,6 +51,7 @@ contract BribeManager is AccessControlUpgradeable {
         uint256[] _rewardTokenIndexs,
         uint256[] _rewardAmounts
     );
+    event AdminWithdrawn(address indexed _token, uint256 _amount);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -291,6 +292,15 @@ contract BribeManager is AccessControlUpgradeable {
                 claim(_weekNo[i], _index[i][j], _amounts[i][j], _proof[i][j]);
             }
         }
+    }
+
+    function adminWithdraw(
+        address _token,
+        uint256 _amount
+    ) external onlyRole(ADMIN_ROLE) {
+        TransferHelper.safeTransferToken(_token, msg.sender, _amount);
+
+        emit AdminWithdrawn(_token, _amount);
     }
 
     function _verifyMerkleData(
