@@ -6,6 +6,7 @@ import "@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
 import "./Dependencies/EqbConstants.sol";
+import "./Dependencies/openzeppelin/contracts/utils/ReentrancyGuardUpgradeable.sol";
 
 import "./Interfaces/IXEqbToken.sol";
 import "@shared/lib-contracts-v0.8/contracts/Dependencies/TransferHelper.sol";
@@ -17,19 +18,13 @@ import "./Interfaces/IEqbMinter.sol";
 import "./Interfaces/IBaseRewardPoolV2.sol";
 import "./Interfaces/IEqbConfig.sol";
 
-abstract contract PendleBoosterBaseUpg is IPendleBooster, OwnableUpgradeable {
+abstract contract PendleBoosterBaseUpg is
+    IPendleBooster,
+    OwnableUpgradeable,
+    ReentrancyGuardUpgradeable
+{
     using SafeERC20 for IERC20;
     using TransferHelper for address;
-
-    // Fixed storage slot for reentrancy guard
-    bytes32 private constant REENTRANCY_SLOT = keccak256("equilibria.pendle.booster.reentrancy");
-
-    // Constants for reentrancy guard values
-    uint256 private constant _NOT_ENTERED = 1;
-    uint256 private constant _ENTERED = 2;
-
-    // Custom error for reentrancy
-    error ReentrantCall();
 
     address public pendle;
 
@@ -74,46 +69,13 @@ abstract contract PendleBoosterBaseUpg is IPendleBooster, OwnableUpgradeable {
         _disableInitializers();
     }
 
-    /**
-     * @dev Prevents a contract from calling itself, directly or indirectly.
-     */
-    modifier nonReentrant() {
-        // On the first call to nonReentrant, _status will be _NOT_ENTERED
-        if (_getReentrancyStatus() == _ENTERED) {
-            revert ReentrantCall();
-        }
-
-        // Any calls to nonReentrant after this point will fail
-        _setReentrancyStatus(_ENTERED);
-
-        _;
-
-        // By storing the original value once again, a refund is triggered
-        _setReentrancyStatus(_NOT_ENTERED);
-    }
-
-    function _getReentrancyStatus() private view returns (uint256 status) {
-        bytes32 slot = REENTRANCY_SLOT;
-        assembly {
-            status := sload(slot)
-        }
-    }
-
-    function _setReentrancyStatus(uint256 status) private {
-        bytes32 slot = REENTRANCY_SLOT;
-        assembly {
-            sstore(slot, status)
-        }
-    }
-
     function __PendleBoosterBaseUpg_init() internal onlyInitializing {
         __PendleBoosterBaseUpg_init_unchained();
     }
 
     function __PendleBoosterBaseUpg_init_unchained() internal onlyInitializing {
         __Ownable_init_unchained();
-        // Initialize reentrancy guard
-        _setReentrancyStatus(_NOT_ENTERED);
+        __ReentrancyGuard_init_unchained();
     }
 
     /// SETTER SECTION ///
@@ -421,7 +383,10 @@ abstract contract PendleBoosterBaseUpg is IPendleBooster, OwnableUpgradeable {
         emit Withdrawn(_to, _pid, _amount);
     }
 
-    function withdraw(uint256 _pid, uint256 _amount) public override nonReentrant {
+    function withdraw(
+        uint256 _pid,
+        uint256 _amount
+    ) public override nonReentrant {
         _withdraw(_pid, _amount, msg.sender, msg.sender);
     }
 
