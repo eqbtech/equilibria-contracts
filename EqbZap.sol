@@ -10,6 +10,7 @@ import "./Interfaces/Pendle/IPendleRouterV3.sol";
 import "./Interfaces/IBaseRewardPool.sol";
 import "./Interfaces/IPendleBooster.sol";
 import "./Interfaces/IEqbConfig.sol";
+import "./Interfaces/IVaultDepositToken.sol";
 import "./Dependencies/EqbConstants.sol";
 
 contract EqbZap is OwnableUpgradeable {
@@ -46,12 +47,29 @@ contract EqbZap is OwnableUpgradeable {
         eqbConfig = IEqbConfig(_eqbConfig);
     }
 
+    function depositToVaultDepositToken(
+        address _vaultDepositToken,
+        uint256 _amount
+    ) external {
+        uint256 pid = IVaultDepositToken(_vaultDepositToken).pid();
+        (address market, address token, , ) = booster.poolInfo(pid);
+        IERC20(market).safeTransferFrom(msg.sender, address(this), _amount);
+        _approveTokenIfNeeded(market, address(booster), _amount);
+        booster.deposit(pid, _amount, false);
+        _approveTokenIfNeeded(token, _vaultDepositToken, _amount);
+        uint256 shares = IVaultDepositToken(_vaultDepositToken).deposit(
+            _amount
+        );
+        IERC20(_vaultDepositToken).safeTransfer(msg.sender, shares);
+    }
+
     function zapIn(
         uint256 _pid,
         uint256 _minLpOut,
         IPendleRouter.ApproxParams calldata _guessPtReceivedFromSy,
         IPendleRouter.TokenInput calldata _input,
-        bool _stake
+        bool _stake,
+        address _vaultDepositToken
     ) external payable {
         (address market, , , ) = booster.poolInfo(_pid);
         _transferIn(_input.tokenIn, msg.sender, _input.netTokenIn);
@@ -60,7 +78,7 @@ contract EqbZap is OwnableUpgradeable {
             .addLiquiditySingleToken{
             value: _input.tokenIn == NATIVE ? _input.netTokenIn : 0
         }(address(this), market, _minLpOut, _guessPtReceivedFromSy, _input);
-        _deposit(_pid, netLpOut, _stake);
+        _deposit(_pid, netLpOut, _stake, _vaultDepositToken);
     }
 
     function withdraw(uint256 _pid, uint256 _amount) external {
@@ -72,13 +90,32 @@ contract EqbZap is OwnableUpgradeable {
         IERC20(market).safeTransfer(msg.sender, _amount);
     }
 
+    function withdrawFromVaultDepositToken(
+        address _vaultDepositToken,
+        uint256 _shares
+    ) external {
+        IERC20(_vaultDepositToken).safeTransferFrom(
+            msg.sender,
+            address(this),
+            _shares
+        );
+        uint256 amount = IVaultDepositToken(_vaultDepositToken).withdraw(
+            _shares
+        );
+        uint256 pid = IVaultDepositToken(_vaultDepositToken).pid();
+        booster.withdraw(pid, amount);
+        (address market, , , ) = booster.poolInfo(pid);
+        IERC20(market).safeTransfer(msg.sender, amount);
+    }
+
     function zapOut(
         uint256 _pid,
         uint256 _amount,
         IPendleRouter.TokenOutput calldata _output,
-        bool _stake
+        bool _stake,
+        address _vaultDepositToken
     ) external {
-        _withdraw(_pid, _amount, _stake);
+        _amount = _withdraw(_pid, _amount, _stake, _vaultDepositToken);
         (address market, , , ) = booster.poolInfo(_pid);
 
         _approveTokenIfNeeded(market, pendleRouter, _amount);
@@ -105,7 +142,8 @@ contract EqbZap is OwnableUpgradeable {
         uint256 _minLpOut,
         IPendleRouterV3.ApproxParams calldata _guessPtSwapToSy,
         IPendleRouterV3.LimitOrderData calldata _limit,
-        bool _stake
+        bool _stake,
+        address _vaultDepositToken
     ) external {
         address pendleRouterV3 = eqbConfig.getContract(
             EqbConstants.PENDLE_ROUTER_V3
@@ -123,7 +161,7 @@ contract EqbZap is OwnableUpgradeable {
                 _guessPtSwapToSy,
                 _limit
             );
-        _deposit(_pid, netLpOut, _stake);
+        _deposit(_pid, netLpOut, _stake, _vaultDepositToken);
     }
 
     function zapInV3SingleToken(
@@ -132,7 +170,8 @@ contract EqbZap is OwnableUpgradeable {
         IPendleRouterV3.ApproxParams calldata _guessPtReceivedFromSy,
         IPendleRouterV3.TokenInput calldata _input,
         IPendleRouterV3.LimitOrderData calldata _limit,
-        bool _stake
+        bool _stake,
+        address _vaultDepositToken
     ) external payable {
         address pendleRouterV3 = eqbConfig.getContract(
             EqbConstants.PENDLE_ROUTER_V3
@@ -155,7 +194,7 @@ contract EqbZap is OwnableUpgradeable {
             _input,
             _limit
         );
-        _deposit(_pid, netLpOut, _stake);
+        _deposit(_pid, netLpOut, _stake, _vaultDepositToken);
     }
 
     function zapInV3SingleTokenKeepYt(
@@ -163,7 +202,8 @@ contract EqbZap is OwnableUpgradeable {
         uint256 _minLpOut,
         uint256 _minYtOut,
         IPendleRouterV3.TokenInput calldata _input,
-        bool _stake
+        bool _stake,
+        address _vaultDepositToken
     ) external payable {
         address pendleRouterV3 = eqbConfig.getContract(
             EqbConstants.PENDLE_ROUTER_V3
@@ -182,7 +222,7 @@ contract EqbZap is OwnableUpgradeable {
             value: _input.tokenIn == NATIVE ? _input.netTokenIn : 0
         }(address(this), market, _minLpOut, _minYtOut, _input);
         IERC20(YT).safeTransfer(msg.sender, netYtOut);
-        _deposit(_pid, netLpOut, _stake);
+        _deposit(_pid, netLpOut, _stake, _vaultDepositToken);
     }
 
     function zapOutV3SinglePt(
@@ -191,12 +231,13 @@ contract EqbZap is OwnableUpgradeable {
         uint256 _minPtOut,
         IPendleRouterV3.ApproxParams calldata _guessPtReceivedFromSy,
         IPendleRouterV3.LimitOrderData calldata _limit,
-        bool _stake
+        bool _stake,
+        address _vaultDepositToken
     ) external {
         address pendleRouterV3 = eqbConfig.getContract(
             EqbConstants.PENDLE_ROUTER_V3
         );
-        _withdraw(_pid, _amount, _stake);
+        _amount = _withdraw(_pid, _amount, _stake, _vaultDepositToken);
         (address market, , , ) = booster.poolInfo(_pid);
 
         _approveTokenIfNeeded(market, pendleRouterV3, _amount);
@@ -215,12 +256,13 @@ contract EqbZap is OwnableUpgradeable {
         uint256 _amount,
         IPendleRouterV3.TokenOutput calldata _output,
         IPendleRouterV3.LimitOrderData calldata _limit,
-        bool _stake
+        bool _stake,
+        address _vaultDepositToken
     ) external {
         address pendleRouterV3 = eqbConfig.getContract(
             EqbConstants.PENDLE_ROUTER_V3
         );
-        _withdraw(_pid, _amount, _stake);
+        _amount = _withdraw(_pid, _amount, _stake, _vaultDepositToken);
         (address market, , , ) = booster.poolInfo(_pid);
 
         _approveTokenIfNeeded(market, pendleRouterV3, _amount);
@@ -233,7 +275,16 @@ contract EqbZap is OwnableUpgradeable {
         );
     }
 
-    function _deposit(uint256 _pid, uint256 _amount, bool _stake) internal {
+    function _deposit(
+        uint256 _pid,
+        uint256 _amount,
+        bool _stake,
+        address _vaultDepositToken
+    ) internal {
+        require(
+            !(_stake && _vaultDepositToken != address(0)),
+            "invalid prameters"
+        );
         (address market, address token, address rewardPool, ) = booster
             .poolInfo(_pid);
         _approveTokenIfNeeded(market, address(booster), _amount);
@@ -242,21 +293,46 @@ contract EqbZap is OwnableUpgradeable {
         if (_stake) {
             _approveTokenIfNeeded(token, rewardPool, _amount);
             IBaseRewardPool(rewardPool).stakeFor(msg.sender, _amount);
+            return;
+        }
+        if (_vaultDepositToken != address(0)) {
+            _approveTokenIfNeeded(token, _vaultDepositToken, _amount);
+            _amount = IVaultDepositToken(_vaultDepositToken).deposit(_amount);
+            IERC20(_vaultDepositToken).safeTransfer(msg.sender, _amount);
         } else {
             IERC20(token).safeTransfer(msg.sender, _amount);
         }
     }
 
-    function _withdraw(uint256 _pid, uint256 _amount, bool _stake) internal {
+    function _withdraw(
+        uint256 _pid,
+        uint256 _amount,
+        bool _stake,
+        address _vaultDepositToken
+    ) internal returns (uint256) {
+        require(
+            !(_stake && _vaultDepositToken != address(0)),
+            "invalid prameters"
+        );
         (, address token, address rewardPool, ) = booster.poolInfo(_pid);
 
-        if (_stake) {
-            IBaseRewardPool(rewardPool).withdrawFor(msg.sender, _amount);
+        if (_vaultDepositToken != address(0)) {
+            IERC20(_vaultDepositToken).safeTransferFrom(
+                msg.sender,
+                address(this),
+                _amount
+            );
+            _amount = IVaultDepositToken(_vaultDepositToken).withdraw(_amount);
+        } else {
+            if (_stake) {
+                IBaseRewardPool(rewardPool).withdrawFor(msg.sender, _amount);
+            }
+
+            IERC20(token).safeTransferFrom(msg.sender, address(this), _amount);
         }
 
-        IERC20(token).safeTransferFrom(msg.sender, address(this), _amount);
-
         booster.withdraw(_pid, _amount);
+        return _amount;
     }
 
     function _transferIn(
