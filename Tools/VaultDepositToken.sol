@@ -13,6 +13,7 @@ import "../Dependencies/EqbConstants.sol";
 import "../Interfaces/Pendle/IPMarket.sol";
 import "../Interfaces/Pendle/IPendleRouterV3.sol";
 import "../Interfaces/Pendle/IPSwapAggregator.sol";
+import "../Interfaces/Pendle/IStandardizedYield.sol";
 import "../Interfaces/IEqbConfig.sol";
 import "../Interfaces/IBaseRewardPool.sol";
 import "../Interfaces/IPendleBooster.sol";
@@ -66,11 +67,11 @@ contract VaultDepositToken is
         pid = _pid;
         (market, token, rewardPool, ) = booster.poolInfo(_pid);
 
-        (address _SY, , ) = IPMarket(market).readTokens();
+        (address SY, , ) = IPMarket(market).readTokens();
 
         __ERC20_init_unchained(
-            string(abi.encodePacked("Auto Compounder EQB ", ERC20(_SY).name())),
-            string(abi.encodePacked("ac-EQB ", ERC20(_SY).symbol()))
+            string(abi.encodePacked("Auto Compounder EQB ", ERC20(SY).name())),
+            string(abi.encodePacked("ac-EQB ", ERC20(SY).symbol()))
         );
 
         userHarvest = true;
@@ -223,7 +224,7 @@ contract VaultDepositToken is
                     IPendleRouterV3.TokenInput({
                         tokenIn: pendle,
                         netTokenIn: pendleAmount,
-                        tokenMintSy: pendle,
+                        tokenMintSy: _getTokenMintSy(market),
                         pendleSwap: address(0),
                         swapData: SwapData({
                             swapType: SwapType.NONE,
@@ -267,6 +268,17 @@ contract VaultDepositToken is
         bool _userHarvest
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         userHarvest = _userHarvest;
+    }
+
+    function _getTokenMintSy(address _market) internal view returns (address) {
+        (address SY, , ) = IPMarket(_market).readTokens();
+        address[] memory tokens = IStandardizedYield(SY).getTokensIn();
+        for (uint256 i = 0; i < tokens.length; i++) {
+            if (tokens[i] != address(0)) {
+                return tokens[i];
+            }
+        }
+        return IStandardizedYield(SY).yieldToken();
     }
 
     function _approveTokenIfNeeded(

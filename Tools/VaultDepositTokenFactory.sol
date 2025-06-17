@@ -14,6 +14,8 @@ contract VaultDepositTokenFactory is AccessControlUpgradeable {
     address public eqbConfig;
     address public booster;
 
+    event VaultDepositTokenCreated(address indexed _vaultDepositToken);
+
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
@@ -47,6 +49,8 @@ contract VaultDepositTokenFactory is AccessControlUpgradeable {
                 _pid
             )
         );
+
+        emit VaultDepositTokenCreated(address(vaultDepositToken));
 
         return address(vaultDepositToken);
     }
