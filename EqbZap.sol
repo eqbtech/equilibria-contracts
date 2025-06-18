@@ -11,6 +11,7 @@ import "./Interfaces/IBaseRewardPool.sol";
 import "./Interfaces/IPendleBooster.sol";
 import "./Interfaces/IEqbConfig.sol";
 import "./Interfaces/IVaultDepositToken.sol";
+import "./Interfaces/IVaultDepositTokenFactory.sol";
 import "./Dependencies/EqbConstants.sol";
 
 contract EqbZap is OwnableUpgradeable {
@@ -42,6 +43,20 @@ contract EqbZap is OwnableUpgradeable {
         pendleRouter = _pendleRouter;
     }
 
+    modifier onlyVaultDepositToken(address _vaultDepositToken) {
+        require(
+            _vaultDepositToken == address(0) ||
+                IVaultDepositTokenFactory(
+                    eqbConfig.getContract(
+                        EqbConstants.VAULT_DEPOSIT_TOKEN_FACTORY
+                    )
+                ).isValidVaultDepositToken(_vaultDepositToken),
+            "invalid _vaultDepositToken"
+        );
+
+        _;
+    }
+
     function setEqbConfig(address _eqbConfig) external onlyOwner {
         require(_eqbConfig != address(0), "invalid _eqbConfig");
         eqbConfig = IEqbConfig(_eqbConfig);
@@ -50,13 +65,13 @@ contract EqbZap is OwnableUpgradeable {
     function depositToVaultDepositToken(
         address _vaultDepositToken,
         uint256 _amount
-    ) external {
+    ) external onlyVaultDepositToken(_vaultDepositToken) {
         uint256 pid = IVaultDepositToken(_vaultDepositToken).pid();
         (address market, address token, , ) = booster.poolInfo(pid);
         IERC20(market).safeTransferFrom(msg.sender, address(this), _amount);
-        _approveTokenIfNeeded(market, address(booster), _amount);
+        IERC20(market).safeIncreaseAllowance(address(booster), _amount);
         booster.deposit(pid, _amount, false);
-        _approveTokenIfNeeded(token, _vaultDepositToken, _amount);
+        IERC20(token).safeIncreaseAllowance(_vaultDepositToken, _amount);
         uint256 shares = IVaultDepositToken(_vaultDepositToken).deposit(
             _amount
         );
@@ -70,7 +85,7 @@ contract EqbZap is OwnableUpgradeable {
         IPendleRouter.TokenInput calldata _input,
         bool _stake,
         address _vaultDepositToken
-    ) external payable {
+    ) external payable onlyVaultDepositToken(_vaultDepositToken) {
         (address market, , , ) = booster.poolInfo(_pid);
         _transferIn(_input.tokenIn, msg.sender, _input.netTokenIn);
         _approveTokenIfNeeded(_input.tokenIn, pendleRouter, _input.netTokenIn);
@@ -93,7 +108,7 @@ contract EqbZap is OwnableUpgradeable {
     function withdrawFromVaultDepositToken(
         address _vaultDepositToken,
         uint256 _shares
-    ) external {
+    ) external onlyVaultDepositToken(_vaultDepositToken) {
         IERC20(_vaultDepositToken).safeTransferFrom(
             msg.sender,
             address(this),
@@ -114,7 +129,7 @@ contract EqbZap is OwnableUpgradeable {
         IPendleRouter.TokenOutput calldata _output,
         bool _stake,
         address _vaultDepositToken
-    ) external {
+    ) external onlyVaultDepositToken(_vaultDepositToken) {
         _amount = _withdraw(_pid, _amount, _stake, _vaultDepositToken);
         (address market, , , ) = booster.poolInfo(_pid);
 
@@ -144,7 +159,7 @@ contract EqbZap is OwnableUpgradeable {
         IPendleRouterV3.LimitOrderData calldata _limit,
         bool _stake,
         address _vaultDepositToken
-    ) external {
+    ) external onlyVaultDepositToken(_vaultDepositToken) {
         address pendleRouterV3 = eqbConfig.getContract(
             EqbConstants.PENDLE_ROUTER_V3
         );
@@ -172,7 +187,7 @@ contract EqbZap is OwnableUpgradeable {
         IPendleRouterV3.LimitOrderData calldata _limit,
         bool _stake,
         address _vaultDepositToken
-    ) external payable {
+    ) external payable onlyVaultDepositToken(_vaultDepositToken) {
         address pendleRouterV3 = eqbConfig.getContract(
             EqbConstants.PENDLE_ROUTER_V3
         );
@@ -204,7 +219,7 @@ contract EqbZap is OwnableUpgradeable {
         IPendleRouterV3.TokenInput calldata _input,
         bool _stake,
         address _vaultDepositToken
-    ) external payable {
+    ) external payable onlyVaultDepositToken(_vaultDepositToken) {
         address pendleRouterV3 = eqbConfig.getContract(
             EqbConstants.PENDLE_ROUTER_V3
         );
@@ -233,7 +248,7 @@ contract EqbZap is OwnableUpgradeable {
         IPendleRouterV3.LimitOrderData calldata _limit,
         bool _stake,
         address _vaultDepositToken
-    ) external {
+    ) external onlyVaultDepositToken(_vaultDepositToken) {
         address pendleRouterV3 = eqbConfig.getContract(
             EqbConstants.PENDLE_ROUTER_V3
         );
@@ -258,7 +273,7 @@ contract EqbZap is OwnableUpgradeable {
         IPendleRouterV3.LimitOrderData calldata _limit,
         bool _stake,
         address _vaultDepositToken
-    ) external {
+    ) external onlyVaultDepositToken(_vaultDepositToken) {
         address pendleRouterV3 = eqbConfig.getContract(
             EqbConstants.PENDLE_ROUTER_V3
         );

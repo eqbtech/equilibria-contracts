@@ -4,6 +4,7 @@ pragma solidity 0.8.17;
 
 interface IVaultDepositToken {
     function initialize(
+        address _owner,
         address _pendle,
         address _swapRouter,
         address _weth,

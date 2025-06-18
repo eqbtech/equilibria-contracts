@@ -12,8 +12,6 @@ import "../Dependencies/EqbConstants.sol";
 
 import "../Interfaces/Pendle/IPMarket.sol";
 import "../Interfaces/Pendle/IPendleRouterV3.sol";
-import "../Interfaces/Pendle/IPSwapAggregator.sol";
-import "../Interfaces/Pendle/IStandardizedYield.sol";
 import "../Interfaces/Uniswap/ISwapRouter.sol";
 import "../Interfaces/IEqbConfig.sol";
 import "../Interfaces/IBaseRewardPool.sol";
@@ -53,6 +51,11 @@ contract VaultDepositToken is
     event Withdrawn(address indexed user, uint256 shares, uint256 amount);
     event Harvested(uint256 amount);
 
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
     /**
      * @dev Sets the value of {token} to the token that the vault will
      * hold as underlying value. It initializes the vault's own 'moo' token.
@@ -60,6 +63,7 @@ contract VaultDepositToken is
      * to withdraw the corresponding portion of the underlying assets.
      */
     function initialize(
+        address _owner,
         address _pendle,
         address _swapRouter,
         address _weth,
@@ -88,18 +92,18 @@ contract VaultDepositToken is
 
         __ERC20_init_unchained(
             string(abi.encodePacked("Auto Compounder EQB ", ERC20(SY).name())),
-            string(abi.encodePacked("ac-EQB ", ERC20(SY).symbol()))
+            string(abi.encodePacked("acEQB-", ERC20(SY).symbol()))
         );
 
         userHarvest = true;
 
-        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
-        _grantRole(EqbConstants.ADMIN_ROLE, msg.sender);
+        _grantRole(DEFAULT_ADMIN_ROLE, _owner);
+        _grantRole(EqbConstants.ADMIN_ROLE, _owner);
     }
 
     modifier updateReward() {
         if (userHarvest) {
-            harvest();
+            _harvest();
         }
 
         _;
@@ -201,15 +205,9 @@ contract VaultDepositToken is
         uint256 r = (balance() * _shares) / totalSupply();
         _burn(msg.sender, _shares);
 
-        uint b = want().balanceOf(address(this));
+        uint256 b = want().balanceOf(address(this));
         if (b < r) {
-            uint _withdraw = r - b;
-            IBaseRewardPool(rewardPool).withdraw(_withdraw);
-            uint _after = want().balanceOf(address(this));
-            uint _diff = _after - b;
-            if (_diff < _withdraw) {
-                r = b + _diff;
-            }
+            IBaseRewardPool(rewardPool).withdraw(r - b);
         }
 
         want().safeTransfer(msg.sender, r);
@@ -219,7 +217,7 @@ contract VaultDepositToken is
         return r;
     }
 
-    function harvest() public {
+    function _harvest() internal {
         IBaseRewardPool(rewardPool).getReward(address(this));
         uint256 pendleAmount = IERC20(pendle).balanceOf(address(this));
         if (pendleAmount > 0) {
@@ -290,19 +288,6 @@ contract VaultDepositToken is
 
             emit Harvested(netLpOut);
         }
-    }
-
-    /**
-     * @dev Rescues random funds stuck that the strat can't handle.
-     * @param _token address of the token to rescue.
-     */
-    function inCaseTokensGetStuck(
-        address _token
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        require(_token != address(want()), "!token");
-
-        uint256 amount = IERC20Upgradeable(_token).balanceOf(address(this));
-        IERC20(_token).safeTransfer(msg.sender, amount);
     }
 
     function setUserHarvest(

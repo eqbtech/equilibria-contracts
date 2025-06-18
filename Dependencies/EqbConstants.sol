@@ -20,4 +20,6 @@ library EqbConstants {
     bytes32 public constant EQB_ZAP = keccak256("EQB_ZAP");
     bytes32 public constant VAULT_DEPOSIT_TOKEN_BEACON =
         keccak256("VAULT_DEPOSIT_TOKEN_BEACON");
+    bytes32 public constant VAULT_DEPOSIT_TOKEN_FACTORY =
+        keccak256("VAULT_DEPOSIT_TOKEN_FACTORY");
 }
