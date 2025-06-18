@@ -14,6 +14,7 @@ import "../Interfaces/Pendle/IPMarket.sol";
 import "../Interfaces/Pendle/IPendleRouterV3.sol";
 import "../Interfaces/Pendle/IPSwapAggregator.sol";
 import "../Interfaces/Pendle/IStandardizedYield.sol";
+import "../Interfaces/Uniswap/ISwapRouter.sol";
 import "../Interfaces/IEqbConfig.sol";
 import "../Interfaces/IBaseRewardPool.sol";
 import "../Interfaces/IPendleBooster.sol";
@@ -33,6 +34,12 @@ contract VaultDepositToken is
     using SafeERC20 for IERC20;
 
     address public pendle;
+    address public swapRouter;
+    address public weth;
+    address public usdc;
+    bytes public pendleToWethPath;
+    bytes public wethToUsdcPath;
+
     IEqbConfig public eqbConfig;
     IPendleBooster public booster;
     uint256 public override pid;
@@ -54,6 +61,11 @@ contract VaultDepositToken is
      */
     function initialize(
         address _pendle,
+        address _swapRouter,
+        address _weth,
+        address _usdc,
+        bytes memory _pendleToWethPath,
+        bytes memory _wethToUsdcPath,
         address _eqbConfig,
         address _booster,
         uint256 _pid
@@ -62,6 +74,11 @@ contract VaultDepositToken is
         __ReentrancyGuard_init_unchained();
 
         pendle = _pendle;
+        swapRouter = _swapRouter;
+        weth = _weth;
+        usdc = _usdc;
+        pendleToWethPath = _pendleToWethPath;
+        wethToUsdcPath = _wethToUsdcPath;
         eqbConfig = IEqbConfig(_eqbConfig);
         booster = IPendleBooster(_booster);
         pid = _pid;
@@ -77,6 +94,7 @@ contract VaultDepositToken is
         userHarvest = true;
 
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _grantRole(EqbConstants.ADMIN_ROLE, msg.sender);
     }
 
     modifier updateReward() {
@@ -205,10 +223,33 @@ contract VaultDepositToken is
         IBaseRewardPool(rewardPool).getReward(address(this));
         uint256 pendleAmount = IERC20(pendle).balanceOf(address(this));
         if (pendleAmount > 0) {
+            // swap pendle to weth
+            _approveTokenIfNeeded(pendle, swapRouter, pendleAmount);
+            uint256 wethAmount = ISwapRouter(swapRouter).exactInput(
+                ISwapRouter.ExactInputParams({
+                    path: pendleToWethPath,
+                    recipient: address(this),
+                    deadline: block.timestamp,
+                    amountIn: pendleAmount,
+                    amountOutMinimum: 0
+                })
+            );
+            // swap weth to usdc
+            _approveTokenIfNeeded(weth, swapRouter, wethAmount);
+            uint256 usdcAmount = ISwapRouter(swapRouter).exactInput(
+                ISwapRouter.ExactInputParams({
+                    path: wethToUsdcPath,
+                    recipient: address(this),
+                    deadline: block.timestamp,
+                    amountIn: wethAmount,
+                    amountOutMinimum: 0
+                })
+            );
+
             address pendleRouterV3 = eqbConfig.getContract(
                 EqbConstants.PENDLE_ROUTER_V3
             );
-            _approveTokenIfNeeded(pendle, pendleRouterV3, pendleAmount);
+            _approveTokenIfNeeded(usdc, pendleRouterV3, usdcAmount);
             (uint256 netLpOut, , ) = IPendleRouterV3(pendleRouterV3)
                 .addLiquiditySingleToken(
                     address(this),
@@ -222,9 +263,9 @@ contract VaultDepositToken is
                         eps: 1e15
                     }),
                     IPendleRouterV3.TokenInput({
-                        tokenIn: pendle,
-                        netTokenIn: pendleAmount,
-                        tokenMintSy: _getTokenMintSy(market),
+                        tokenIn: usdc,
+                        netTokenIn: usdcAmount,
+                        tokenMintSy: usdc,
                         pendleSwap: address(0),
                         swapData: SwapData({
                             swapType: SwapType.NONE,
@@ -266,19 +307,20 @@ contract VaultDepositToken is
 
     function setUserHarvest(
         bool _userHarvest
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    ) external onlyRole(EqbConstants.ADMIN_ROLE) {
         userHarvest = _userHarvest;
     }
 
-    function _getTokenMintSy(address _market) internal view returns (address) {
-        (address SY, , ) = IPMarket(_market).readTokens();
-        address[] memory tokens = IStandardizedYield(SY).getTokensIn();
-        for (uint256 i = 0; i < tokens.length; i++) {
-            if (tokens[i] != address(0)) {
-                return tokens[i];
-            }
-        }
-        return IStandardizedYield(SY).yieldToken();
+    function setPendleToWethPath(
+        bytes memory _pendleToWethPath
+    ) external onlyRole(EqbConstants.ADMIN_ROLE) {
+        pendleToWethPath = _pendleToWethPath;
+    }
+
+    function setWethToUsdcPath(
+        bytes memory _wethToUsdcPath
+    ) external onlyRole(EqbConstants.ADMIN_ROLE) {
+        wethToUsdcPath = _wethToUsdcPath;
     }
 
     function _approveTokenIfNeeded(

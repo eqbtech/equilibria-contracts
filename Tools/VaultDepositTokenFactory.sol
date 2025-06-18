@@ -11,6 +11,11 @@ import "../Interfaces/IVaultDepositToken.sol";
 
 contract VaultDepositTokenFactory is AccessControlUpgradeable {
     address public pendle;
+    address public swapRouter;
+    address public weth;
+    address public usdc;
+    bytes public pendleToWethPath;
+    bytes public wethToUsdcPath;
     address public eqbConfig;
     address public booster;
 
@@ -23,10 +28,20 @@ contract VaultDepositTokenFactory is AccessControlUpgradeable {
 
     function initialize(
         address _pendle,
+        address _swapRouter,
+        address _weth,
+        address _usdc,
+        bytes memory _pendleToWethPath,
+        bytes memory _wethToUsdcPath,
         address _eqbConfig,
         address _booster
     ) public initializer {
         pendle = _pendle;
+        swapRouter = _swapRouter;
+        weth = _weth;
+        usdc = _usdc;
+        pendleToWethPath = _pendleToWethPath;
+        wethToUsdcPath = _wethToUsdcPath;
         eqbConfig = _eqbConfig;
         booster = _booster;
 
@@ -44,6 +59,11 @@ contract VaultDepositTokenFactory is AccessControlUpgradeable {
             abi.encodeWithSelector(
                 IVaultDepositToken.initialize.selector,
                 pendle,
+                swapRouter,
+                weth,
+                usdc,
+                pendleToWethPath,
+                wethToUsdcPath,
                 eqbConfig,
                 booster,
                 _pid

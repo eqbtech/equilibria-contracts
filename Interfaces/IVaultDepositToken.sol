@@ -5,6 +5,11 @@ pragma solidity 0.8.17;
 interface IVaultDepositToken {
     function initialize(
         address _pendle,
+        address _swapRouter,
+        address _weth,
+        address _usdc,
+        bytes memory _pendleToWethPath,
+        bytes memory _wethToUsdcPath,
         address _eqbConfig,
         address _booster,
         uint256 _pid
