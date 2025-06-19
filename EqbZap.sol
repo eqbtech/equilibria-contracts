@@ -69,9 +69,9 @@ contract EqbZap is OwnableUpgradeable {
         uint256 pid = IVaultDepositToken(_vaultDepositToken).pid();
         (address market, address token, , ) = booster.poolInfo(pid);
         IERC20(market).safeTransferFrom(msg.sender, address(this), _amount);
-        IERC20(market).safeIncreaseAllowance(address(booster), _amount);
+        _approveTokenIfNeeded(market, address(booster), _amount);
         booster.deposit(pid, _amount, false);
-        IERC20(token).safeIncreaseAllowance(_vaultDepositToken, _amount);
+        _approveTokenIfNeeded(token, _vaultDepositToken, _amount);
         uint256 shares = IVaultDepositToken(_vaultDepositToken).deposit(
             _amount
         );
@@ -371,9 +371,7 @@ contract EqbZap is OwnableUpgradeable {
         if (_token == NATIVE) {
             return;
         }
-        if (IERC20(_token).allowance(address(this), _to) < _amount) {
-            IERC20(_token).safeApprove(_to, 0);
-            IERC20(_token).safeApprove(_to, type(uint256).max);
-        }
+
+        IERC20(_token).forceApprove(_to, _amount);
     }
 }

@@ -290,6 +290,19 @@ contract VaultDepositToken is
         }
     }
 
+    /**
+     * @dev Rescues random funds stuck that the strat can't handle.
+     * @param _token address of the token to rescue.
+     */
+    function inCaseTokensGetStuck(
+        address _token
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(_token != address(want()) && _token != pendle, "!token");
+
+        uint256 amount = IERC20(_token).balanceOf(address(this));
+        IERC20(_token).safeTransfer(msg.sender, amount);
+    }
+
     function setUserHarvest(
         bool _userHarvest
     ) external onlyRole(EqbConstants.ADMIN_ROLE) {
