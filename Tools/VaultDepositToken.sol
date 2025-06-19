@@ -159,7 +159,7 @@ contract VaultDepositToken is
         require(_amount > 0, "amount must be greater than zero");
         uint256 _pool = balance();
         want().safeTransferFrom(msg.sender, address(this), _amount);
-        earn();
+        _earn();
         uint256 _after = balance();
         _amount = _after - _pool; // Additional check for deflationary tokens
         uint256 shares = 0;
@@ -179,7 +179,11 @@ contract VaultDepositToken is
      * @dev Function to send funds into the strategy and put them to work. It's primarily called
      * by the vault's deposit() function.
      */
-    function earn() public {
+    function earn() external nonReentrant {
+        _earn();
+    }
+
+    function _earn() internal {
         uint _bal = available();
         _approveTokenIfNeeded(token, rewardPool, _bal);
         IBaseRewardPool(rewardPool).stake(_bal);
@@ -199,7 +203,7 @@ contract VaultDepositToken is
      */
     function withdraw(
         uint256 _shares
-    ) public override updateReward returns (uint256) {
+    ) public override nonReentrant updateReward returns (uint256) {
         require(_shares > 0, "shares must be greater than zero");
 
         uint256 r = (balance() * _shares) / totalSupply();
