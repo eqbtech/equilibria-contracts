@@ -31,6 +31,8 @@ contract VaultDepositToken is
 {
     using SafeERC20 for IERC20;
 
+    address public owner;
+
     address public pendle;
     address public swapRouter;
     address public weth;
@@ -77,6 +79,7 @@ contract VaultDepositToken is
         __AccessControl_init();
         __ReentrancyGuard_init_unchained();
 
+        owner = _owner;
         pendle = _pendle;
         swapRouter = _swapRouter;
         weth = _weth;
@@ -164,7 +167,12 @@ contract VaultDepositToken is
         _amount = _after - _pool; // Additional check for deflationary tokens
         uint256 shares = 0;
         if (totalSupply() == 0) {
+            // for the first mint, we require the mint amount > 1e16
+            // and send 1e12 of the initial supply as a reserve to owner
             shares = _amount;
+            require(shares > 1e16);
+            _mint(owner, 1e12);
+            shares -= 1e12;
         } else {
             shares = (_amount * totalSupply()) / _pool;
         }
