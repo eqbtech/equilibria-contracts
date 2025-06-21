@@ -49,6 +49,8 @@ contract VaultDepositToken is
 
     bool public userHarvest;
 
+    uint256 public minAmountToHarvest;
+
     event Deposited(address indexed user, uint256 shares, uint256 amount);
     event Withdrawn(address indexed user, uint256 shares, uint256 amount);
     event Harvested(uint256 amount);
@@ -99,6 +101,8 @@ contract VaultDepositToken is
         );
 
         userHarvest = true;
+
+        minAmountToHarvest = 1e18;
 
         _grantRole(DEFAULT_ADMIN_ROLE, _owner);
         _grantRole(EqbConstants.ADMIN_ROLE, _owner);
@@ -232,7 +236,7 @@ contract VaultDepositToken is
     function _harvest() internal {
         IBaseRewardPool(rewardPool).getReward(address(this));
         uint256 pendleAmount = IERC20(pendle).balanceOf(address(this));
-        if (pendleAmount > 0) {
+        if (pendleAmount >= minAmountToHarvest) {
             // swap pendle to weth
             _approveTokenIfNeeded(pendle, swapRouter, pendleAmount);
             uint256 wethAmount = ISwapRouter(swapRouter).exactInput(
@@ -319,6 +323,12 @@ contract VaultDepositToken is
         bool _userHarvest
     ) external onlyRole(EqbConstants.ADMIN_ROLE) {
         userHarvest = _userHarvest;
+    }
+
+    function setMinAmountToHarvest(
+        uint256 _minAmountToHarvest
+    ) external onlyRole(EqbConstants.ADMIN_ROLE) {
+        minAmountToHarvest = _minAmountToHarvest;
     }
 
     function setPendleToWethPath(
