@@ -233,6 +233,10 @@ contract VaultDepositToken is
         return r;
     }
 
+    function adminHarvest() external onlyRole(EqbConstants.ADMIN_ROLE) {
+        _harvest();
+    }
+
     function _harvest() internal {
         IBaseRewardPool(rewardPool).getReward(address(this));
         uint256 pendleAmount = IERC20(pendle).balanceOf(address(this));
